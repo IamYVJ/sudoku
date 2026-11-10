@@ -99,6 +99,113 @@
     --note-color:    rgba(242, 241, 238, .62);
 }
 
+/* ── Board colours (Settings → Board colour). Gold is the default in the blocks above.
+   Light blocks come first; dark blocks share their specificity and follow, so they win in dark mode. ── */
+:root[data-accent="sage"] {
+    --accent-primary:   #3d7a56;
+    --accent-secondary: #2e6446;
+    --accent-2:         #2e6446;
+    --accent-soft:      rgba(61,122,86, .10);
+    --accent-glow:      rgba(61,122,86, .07);
+    --accent-contrast:  #f7fbf8;
+    --accent-gradient:  linear-gradient(135deg, #3d7a56, #2e6446);
+    --cell-same:        rgba(61,122,86, .16);
+    --cell-selected:    rgba(61,122,86, .26);
+    --cell-diag:        rgba(61,122,86, .14);
+    --digit-user:       #2e6446;
+}
+:root[data-accent="sky"] {
+    --accent-primary:   #2c6cb0;
+    --accent-secondary: #225791;
+    --accent-2:         #225791;
+    --accent-soft:      rgba(44,108,176, .10);
+    --accent-glow:      rgba(44,108,176, .07);
+    --accent-contrast:  #f6faff;
+    --accent-gradient:  linear-gradient(135deg, #2c6cb0, #225791);
+    --cell-same:        rgba(44,108,176, .16);
+    --cell-selected:    rgba(44,108,176, .26);
+    --cell-diag:        rgba(44,108,176, .14);
+    --digit-user:       #225791;
+}
+:root[data-accent="rose"] {
+    --accent-primary:   #b4426a;
+    --accent-secondary: #9a3358;
+    --accent-2:         #9a3358;
+    --accent-soft:      rgba(180,66,106, .10);
+    --accent-glow:      rgba(180,66,106, .07);
+    --accent-contrast:  #fff8fa;
+    --accent-gradient:  linear-gradient(135deg, #b4426a, #9a3358);
+    --cell-same:        rgba(180,66,106, .16);
+    --cell-selected:    rgba(180,66,106, .26);
+    --cell-diag:        rgba(180,66,106, .14);
+    --digit-user:       #9a3358;
+}
+:root[data-accent="graphite"] {
+    --accent-primary:   #565961;
+    --accent-secondary: #3e4148;
+    --accent-2:         #3e4148;
+    --accent-soft:      rgba(86,89,97, .10);
+    --accent-glow:      rgba(86,89,97, .07);
+    --accent-contrast:  #fafafb;
+    --accent-gradient:  linear-gradient(135deg, #565961, #3e4148);
+    --cell-same:        rgba(86,89,97, .16);
+    --cell-selected:    rgba(86,89,97, .26);
+    --cell-diag:        rgba(86,89,97, .14);
+    --digit-user:       #3e4148;
+}
+[data-theme="dark"][data-accent="sage"] {
+    --accent-primary:   #8cc8a0;
+    --accent-secondary: #a9d9b8;
+    --accent-2:         #a9d9b8;
+    --accent-soft:      rgba(140,200,160, .14);
+    --accent-glow:      rgba(140,200,160, .10);
+    --accent-contrast:  #0a0a0b;
+    --accent-gradient:  linear-gradient(135deg, #8cc8a0, #a9d9b8);
+    --cell-same:        rgba(140,200,160, .16);
+    --cell-selected:    rgba(140,200,160, .26);
+    --cell-diag:        rgba(140,200,160, .13);
+    --digit-user:       #8cc8a0;
+}
+[data-theme="dark"][data-accent="sky"] {
+    --accent-primary:   #7fb6ee;
+    --accent-secondary: #a3cbf3;
+    --accent-2:         #a3cbf3;
+    --accent-soft:      rgba(127,182,238, .14);
+    --accent-glow:      rgba(127,182,238, .10);
+    --accent-contrast:  #0a0a0b;
+    --accent-gradient:  linear-gradient(135deg, #7fb6ee, #a3cbf3);
+    --cell-same:        rgba(127,182,238, .16);
+    --cell-selected:    rgba(127,182,238, .26);
+    --cell-diag:        rgba(127,182,238, .13);
+    --digit-user:       #7fb6ee;
+}
+[data-theme="dark"][data-accent="rose"] {
+    --accent-primary:   #f08aa8;
+    --accent-secondary: #f5aabf;
+    --accent-2:         #f5aabf;
+    --accent-soft:      rgba(240,138,168, .14);
+    --accent-glow:      rgba(240,138,168, .10);
+    --accent-contrast:  #0a0a0b;
+    --accent-gradient:  linear-gradient(135deg, #f08aa8, #f5aabf);
+    --cell-same:        rgba(240,138,168, .16);
+    --cell-selected:    rgba(240,138,168, .26);
+    --cell-diag:        rgba(240,138,168, .13);
+    --digit-user:       #f08aa8;
+}
+[data-theme="dark"][data-accent="graphite"] {
+    --accent-primary:   #b6bac4;
+    --accent-secondary: #d2d5dc;
+    --accent-2:         #d2d5dc;
+    --accent-soft:      rgba(182,186,196, .14);
+    --accent-glow:      rgba(182,186,196, .10);
+    --accent-contrast:  #0a0a0b;
+    --accent-gradient:  linear-gradient(135deg, #b6bac4, #d2d5dc);
+    --cell-same:        rgba(182,186,196, .16);
+    --cell-selected:    rgba(182,186,196, .26);
+    --cell-diag:        rgba(182,186,196, .13);
+    --digit-user:       #b6bac4;
+}
+
 /* ── Reset & base ── */
 * {
     margin: 0;
@@ -1484,6 +1591,55 @@ kbd {
 }
 .switch-row[aria-checked="true"] .switch { background: var(--accent-primary); border-color: var(--accent-primary); }
 .switch-row[aria-checked="true"] .switch::after { transform: translateX(18px); background: var(--accent-contrast); }
+
+/* ── Board colour swatches ── */
+.accent-setting {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-color);
+}
+.accent-swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+.accent-swatch {
+    --sw: #b6850c;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--sw);
+    border: 2px solid var(--bg-secondary);
+    box-shadow: 0 0 0 1px var(--border-2);
+    cursor: pointer;
+    position: relative;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition: box-shadow var(--transition-fast), transform var(--transition-fast);
+}
+.accent-swatch[data-accent-choice="sage"]     { --sw: #3d7a56; }
+.accent-swatch[data-accent-choice="sky"]      { --sw: #2c6cb0; }
+.accent-swatch[data-accent-choice="rose"]     { --sw: #b4426a; }
+.accent-swatch[data-accent-choice="graphite"] { --sw: #565961; }
+[data-theme="dark"] .accent-swatch { --sw: #f0c75e; }
+[data-theme="dark"] .accent-swatch[data-accent-choice="sage"]     { --sw: #8cc8a0; }
+[data-theme="dark"] .accent-swatch[data-accent-choice="sky"]      { --sw: #7fb6ee; }
+[data-theme="dark"] .accent-swatch[data-accent-choice="rose"]     { --sw: #f08aa8; }
+[data-theme="dark"] .accent-swatch[data-accent-choice="graphite"] { --sw: #b6bac4; }
+.accent-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--text-primary); }
+.accent-swatch[aria-checked="true"]::after {
+    content: "";
+    position: absolute;
+    left: 13px;
+    top: 8px;
+    width: 8px;
+    height: 15px;
+    border: solid #fff;
+    border-width: 0 2.5px 2.5px 0;
+    transform: rotate(45deg);
+    mix-blend-mode: normal;
+    filter: drop-shadow(0 0 1px rgba(0, 0, 0, .55));
+}
+[data-theme="dark"] .accent-swatch[aria-checked="true"]::after { border-color: #0a0a0b; filter: none; }
+.accent-swatch:focus-visible { outline: 2px solid var(--accent-primary); outline-offset: 3px; }
 
 /* ── Hover (pointer devices only) ── */
 @media (hover: hover) {

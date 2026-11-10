@@ -44,6 +44,7 @@ generated right in your browser — with pencil-mark notes, hints, undo, dark mo
 - **Works offline, installable** — after the first visit the game and puzzle generator run
   without a connection, and it can be added to your home screen as an app.
 - **Dark / light theme**, remembered across visits.
+- **Board colours** — Gold, Sage, Sky, Rose or Graphite, in light and dark, chosen in Settings.
 - **Built for phones and keyboards** — big tap targets, a layout that fits any screen, and
   full keyboard play.
 

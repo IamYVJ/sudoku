@@ -48,6 +48,7 @@
     const bit = (d) => 1 << (d - 1);
     const label = (d) => E.DIFFICULTIES[d].label;
     const VARIANT_NAMES = ['classic', 'diagonal'];
+    const ACCENTS = ['gold', 'sage', 'sky', 'rose', 'graphite'];
     const isDiag = (v) => v === 'diagonal';
     // "Medium" for classic, "Diagonal · Medium" for the diagonal variant.
     const levelName = (g) => (isDiag(g.variant) ? 'Diagonal · ' : '') + label(g.difficulty);
@@ -67,6 +68,7 @@
         notesMode: false,
         armed: 0,                       // digit picked in digit-first mode
         prefs: { digitFirst: false, strict: false, haptics: true },
+        accent: 'gold',
         conflicts: new Uint8Array(81),
         pauseReasons: new Set(),
         runningSince: null,
@@ -320,6 +322,7 @@
             if (VARIANT_NAMES.includes(s.variant)) state.variant = s.variant;
             if (s.prefs && typeof s.prefs === 'object') {
                 Object.keys(state.prefs).forEach((k) => { if (typeof s.prefs[k] === 'boolean') state.prefs[k] = s.prefs[k]; });
+                if (ACCENTS.includes(s.prefs.accent)) state.accent = s.prefs.accent;
             }
             return { screen: s.screen === 'game' ? 'game' : 'home', active: s.active === 'daily' ? 'daily' : 'classic' };
         }
@@ -329,11 +332,29 @@
         store.set(KEYS.settings, {
             v: 1, difficulty: state.difficulty, variant: state.variant, screen: state.screen,
             active: state.game && state.game.mode === 'daily' ? 'daily' : 'classic',
-            prefs: state.prefs
+            prefs: Object.assign({}, state.prefs, { accent: state.accent })
         });
     }
 
+    function applyAccent(a) {
+        state.accent = a;
+        if (a === 'gold') document.documentElement.removeAttribute('data-accent');
+        else document.documentElement.setAttribute('data-accent', a);
+    }
+    function setAccent(a) {
+        if (!ACCENTS.includes(a)) return;
+        applyAccent(a);
+        saveSettings();
+        renderSettings();
+        announce('Board colour: ' + a.charAt(0).toUpperCase() + a.slice(1));
+    }
+
     function renderSettings() {
+        document.querySelectorAll('.accent-swatch').forEach((b) => {
+            const on = b.dataset.accentChoice === state.accent;
+            b.setAttribute('aria-checked', String(on));
+            b.tabIndex = on ? 0 : -1;
+        });
         document.querySelectorAll('.switch-row[data-pref]').forEach((b) => {
             b.setAttribute('aria-checked', String(!!state.prefs[b.dataset.pref]));
         });
@@ -1852,6 +1873,7 @@
         loadHistory();
         dailyData = loadDaily();
         const settings = loadSettings();
+        applyAccent(state.accent);
         buildBoard();
         buildNumpad();
         try { history.replaceState({ sudoku: 'home' }, ''); } catch (e) { /* ignore */ }
@@ -1867,6 +1889,22 @@
         const openSettings = () => { renderSettings(); openModal('settings-modal'); };
         $('home-settings-btn').addEventListener('click', openSettings);
         $('settings-btn').addEventListener('click', openSettings);
+        const swatches = Array.from(document.querySelectorAll('.accent-swatch'));
+        swatches.forEach((b, i) => {
+            b.addEventListener('click', () => setAccent(b.dataset.accentChoice));
+            b.addEventListener('keydown', (e) => {
+                const k = e.key;
+                let to = -1;
+                if (k === 'ArrowRight' || k === 'ArrowDown') to = (i + 1) % swatches.length;
+                else if (k === 'ArrowLeft' || k === 'ArrowUp') to = (i + swatches.length - 1) % swatches.length;
+                else if (k === 'Home') to = 0;
+                else if (k === 'End') to = swatches.length - 1;
+                if (to < 0) return;
+                e.preventDefault();
+                swatches[to].focus();
+                setAccent(swatches[to].dataset.accentChoice);
+            });
+        });
         document.querySelectorAll('.switch-row[data-pref]').forEach((b) => {
             b.addEventListener('click', () => setPref(b.dataset.pref, !state.prefs[b.dataset.pref]));
         });

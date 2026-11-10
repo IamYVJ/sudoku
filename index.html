@@ -19,6 +19,7 @@
     <script>
     (function(){var t='dark';try{var s=localStorage.getItem('theme');if(s==='light'||s==='dark')t=s;}catch(e){}
     document.documentElement.setAttribute('data-theme',t);
+    try{var o=JSON.parse(localStorage.getItem('sudoku-settings'));var a=o&&o.prefs&&o.prefs.accent;if(a==='sage'||a==='sky'||a==='rose'||a==='graphite')document.documentElement.setAttribute('data-accent',a);}catch(e){}
     var m=document.querySelector('meta[name="theme-color"]');if(m)m.content=t==='light'?'#f6f5f2':'#0a0a0b';})();
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -328,6 +329,19 @@
                     </span>
                     <span class="switch" aria-hidden="true"></span>
                 </button>
+            </div>
+            <div class="accent-setting">
+                <div class="switch-text">
+                    <span class="switch-title" id="accent-label">Board colour</span>
+                    <span class="switch-desc">The highlight colour for the board, buttons and charts.</span>
+                </div>
+                <div class="accent-swatches" role="radiogroup" aria-labelledby="accent-label" id="accent-group">
+                    <button class="accent-swatch" type="button" role="radio" aria-checked="true" data-accent-choice="gold" aria-label="Gold" title="Gold"></button>
+                    <button class="accent-swatch" type="button" role="radio" aria-checked="false" data-accent-choice="sage" aria-label="Sage" title="Sage"></button>
+                    <button class="accent-swatch" type="button" role="radio" aria-checked="false" data-accent-choice="sky" aria-label="Sky" title="Sky"></button>
+                    <button class="accent-swatch" type="button" role="radio" aria-checked="false" data-accent-choice="rose" aria-label="Rose" title="Rose"></button>
+                    <button class="accent-swatch" type="button" role="radio" aria-checked="false" data-accent-choice="graphite" aria-label="Graphite" title="Graphite"></button>
+                </div>
             </div>
             <p class="settings-install" id="install-row" hidden><button class="text-btn" id="install-btn" type="button">Install app</button></p>
         </div>
