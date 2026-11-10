@@ -59,7 +59,7 @@
         selected: -1,
         notesMode: false,
         armed: 0,                       // digit picked in digit-first mode
-        prefs: { digitFirst: false, strict: false },
+        prefs: { digitFirst: false, strict: false, haptics: true },
         conflicts: new Uint8Array(81),
         pauseReasons: new Set(),
         runningSince: null,
@@ -126,6 +126,14 @@
         clearTimeout(toastTimer);
         toastTimer = setTimeout(() => { if (m.parentNode) m.parentNode.removeChild(m); }, ms || 1800);
     }
+
+    // ── Haptics (phones that support it; silently nothing elsewhere) ──
+    const canVibrate = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+    function buzz(pattern) {
+        if (!canVibrate || !state.prefs.haptics) return;
+        try { navigator.vibrate(pattern); } catch (e) { /* ignore */ }
+    }
+    const BUZZ = { tap: 8, error: [30, 50, 30], unit: [10, 40, 10], win: [20, 60, 20, 60, 40], lost: 160 };
 
     // ── Sharing ──
     // Phones get the native share sheet; everything else copies to the clipboard.
@@ -293,7 +301,7 @@
             puzzle: E.stringify(g.puzzle), solution: E.stringify(g.solution), values: E.stringify(g.values),
             notes: Array.from(g.notes), hinted: Array.from(g.hinted), hintsUsed: g.hintsUsed,
             elapsed: Math.round(currentElapsed()),
-            undo: g.undo, selected: state.selected, notesMode: state.notesMode,
+            undo: g.undo, redo: g.redo, selected: state.selected, notesMode: state.notesMode,
             createdAt: g.createdAt, updatedAt: Date.now()
         });
         state.lastSave = Date.now();
@@ -316,15 +324,19 @@
                 if (r.puzzle[i] !== '0' && (r.puzzle[i] !== r.solution[i] || r.values[i] !== r.puzzle[i])) throw 0;
             }
             const hinted = Array.isArray(r.hinted) ? r.hinted.filter((i) => Number.isInteger(i) && i >= 0 && i < 81) : [];
-            const undo = [];
-            if (Array.isArray(r.undo)) {
-                for (const u of r.undo.slice(-UNDO_CAP)) {
+            const readHistory = (list) => {
+                const out = [];
+                if (!Array.isArray(list)) return out;
+                for (const u of list.slice(-UNDO_CAP)) {
                     if (!u || !Array.isArray(u.c)) continue;
                     const c = u.c.filter((t) => Array.isArray(t) && t.length === 3 && Number.isInteger(t[0]) && t[0] >= 0 && t[0] < 81 &&
                         Number.isInteger(t[1]) && t[1] >= 0 && t[1] <= 9 && Number.isInteger(t[2]) && t[2] >= 0 && t[2] <= 511);
-                    if (c.length) undo.push({ c, s: Number.isInteger(u.s) ? u.s : -1 });
+                    if (c.length) out.push({ c, s: Number.isInteger(u.s) ? u.s : -1 });
                 }
-            }
+                return out;
+            };
+            const undo = readHistory(r.undo);
+            const redo = readHistory(r.redo);
             const puzzle = E.parse(r.puzzle);
             const given = new Uint8Array(81);
             for (let i = 0; i < 81; i++) given[i] = puzzle[i] ? 1 : 0;
@@ -337,7 +349,7 @@
                 notes: Uint16Array.from(r.notes), given, hinted: new Set(hinted),
                 hintsUsed: Math.max(0, Number(r.hintsUsed) | 0),
                 elapsed: Math.max(0, Number(r.elapsed) || 0),
-                undo, createdAt: Number(r.createdAt) || Date.now(), status: 'playing'
+                undo, redo, createdAt: Number(r.createdAt) || Date.now(), status: 'playing'
             };
             game.sel = Number.isInteger(r.selected) && r.selected >= 0 && r.selected < 81 ? r.selected : -1;
             game.nm = !!r.notesMode;
@@ -553,7 +565,7 @@
             difficulty: p.difficulty, seed: p.seed, level: p.level,
             puzzle, solution: E.parse(p.solution), values: puzzle.slice(),
             notes: new Uint16Array(81), given, hinted: new Set(),
-            hintsUsed: 0, elapsed: 0, undo: [], createdAt: Date.now(), status: 'playing',
+            hintsUsed: 0, elapsed: 0, undo: [], redo: [], createdAt: Date.now(), status: 'playing',
             sel: first, nm: false
         };
         state.games[mode] = g;
@@ -643,9 +655,11 @@
         }
         state.games[g.mode] = null;
         g.undo = [];
+        g.redo = [];
         state.selected = -1;
         render();
         el.board.classList.add('is-won');
+        buzz(BUZZ.win);
         announce('Solved in ' + fmtSpoken(ms));
         const delay = prefersReducedMotion() ? 0 : 700;
         setTimeout(() => {
@@ -662,7 +676,9 @@
         store.del(g.mode === 'daily' ? KEYS.dailyGame : KEYS.game);
         state.games[g.mode] = null;
         g.undo = [];
+        g.redo = [];
         state.armed = 0;
+        buzz(BUZZ.lost);
         render();
         announce('Third mistake. Game over.');
         setTimeout(() => {
@@ -922,6 +938,7 @@
         el.hintCount.hidden = hc === 0;
         el.hintCount.textContent = String(hc);
         el.undoBtn.disabled = !playing || !g.undo.length;
+        el.redoBtn.disabled = !playing || !g.redo.length;
         el.eraseBtn.disabled = !playing || state.selected < 0 || !editable(state.selected) || (!g.values[state.selected] && !g.notes[state.selected]);
         el.notesBtn.disabled = !playing;
         el.fillBtn.disabled = !playing;
@@ -1000,10 +1017,12 @@
         selectCell(r * 9 + c, { focus });
     }
 
-    function pushUndo(entry) {
-        const u = state.game.undo;
-        u.push(entry);
-        if (u.length > UNDO_CAP) u.shift();
+    // A new move starts a new branch, so it clears the redo stack.
+    function pushUndo(entry, keepRedo) {
+        const g = state.game;
+        g.undo.push(entry);
+        if (g.undo.length > UNDO_CAP) g.undo.shift();
+        if (!keepRedo) g.redo = [];
     }
 
     function flashCells(list) {
@@ -1069,7 +1088,9 @@
         let msg = 'Row ' + (E.ROW[i] + 1) + ', column ' + (E.COL[i] + 1) + ': ' + d;
         if (state.conflicts[i]) msg += ' — clashes with another ' + d;
         if (parts.length) msg += ' — ' + parts.join(', ');
-        if (g.strict && d !== g.solution[i]) {
+        const wrong = g.strict && d !== g.solution[i];
+        buzz(wrong || state.conflicts[i] ? BUZZ.error : done.length ? BUZZ.unit : BUZZ.tap);
+        if (wrong) {
             g.mistakes++;
             msg += ' — wrong, mistake ' + g.mistakes + ' of ' + MAX_MISTAKES;
             if (g.mistakes >= MAX_MISTAKES) { computeConflicts(); onLost(); announce(msg + '. Game over.'); return; }
@@ -1086,6 +1107,7 @@
         if (g.values[i]) { toast('Erase the digit to add notes'); return; }
         pushUndo({ c: [[i, 0, g.notes[i]]], s: i });
         g.notes[i] ^= bit(d);
+        buzz(BUZZ.tap);
         afterChange(i);
     }
 
@@ -1099,20 +1121,28 @@
         afterChange(i);
     }
 
-    function undo() {
+    // Undo and redo are mirror images: applying an entry first records the cells' current
+    // state as the opposite entry, so either stack can be replayed.
+    function applyHistory(from, to, emptyMsg) {
         const g = state.game;
         if (!g || g.status !== 'playing' || isUserPaused()) return;
-        const entry = g.undo.pop();
-        if (!entry) { toast('Nothing to undo'); return; }
+        const entry = from.pop();
+        if (!entry) { toast(emptyMsg); return; }
+        const inverse = { c: entry.c.map((t) => [t[0], g.values[t[0]], g.notes[t[0]]]), s: entry.s };
         for (let k = entry.c.length - 1; k >= 0; k--) {
             const t = entry.c[k];
             if (g.given[t[0]] || g.hinted.has(t[0])) continue;
             g.values[t[0]] = t[1];
             g.notes[t[0]] = t[2];
         }
+        to.push(inverse);
+        if (to.length > UNDO_CAP) to.shift();
         if (entry.s >= 0) state.selected = entry.s;
+        buzz(BUZZ.tap);
         afterChange(-1);
     }
+    function undo() { const g = state.game; if (g) applyHistory(g.undo, g.redo, 'Nothing to undo'); }
+    function redo() { const g = state.game; if (g) applyHistory(g.redo, g.undo, 'Nothing to redo'); }
 
     // Digit-first: tapping a number picks it up (or puts it down); tapping cells then fills them.
     function pickDigit(d) {
@@ -1209,7 +1239,9 @@
         g.hintsUsed++;
         const peers = E.PEERS[t];
         for (let k = 0; k < peers.length; k++) { const p = peers[k]; if (!g.values[p]) g.notes[p] &= ~bit(d); }
-        g.undo = g.undo.map((e) => ({ c: e.c.filter((x) => x[0] !== t), s: e.s })).filter((e) => e.c.length);
+        const strip = (list) => list.map((e) => ({ c: e.c.filter((x) => x[0] !== t), s: e.s })).filter((e) => e.c.length);
+        g.undo = strip(g.undo);
+        g.redo = strip(g.redo);
         state.selected = t;
         clearHintNote();
         if (note) showHintNote(note.title, note.text, unit);
@@ -1411,7 +1443,7 @@
         if (e.key === '?') { e.preventDefault(); openHelp(); return; }
         if (state.screen !== 'game' || !state.game || e.altKey) return;
         const code = e.code;
-        if ((e.ctrlKey || e.metaKey) && code !== 'KeyZ') return;
+        if ((e.ctrlKey || e.metaKey) && code !== 'KeyZ' && code !== 'KeyY') return;
 
         if (code === 'KeyP') { e.preventDefault(); if (state.game.status === 'playing') setUserPaused(!isUserPaused()); return; }
         if (isUserPaused() || state.game.status !== 'playing') return;
@@ -1430,7 +1462,9 @@
             case 'ArrowLeft': e.preventDefault(); moveSelection(0, -1); break;
             case 'ArrowRight': e.preventDefault(); moveSelection(0, 1); break;
             case 'KeyN': e.preventDefault(); toggleNotesMode(); break;
-            case 'KeyZ': case 'KeyU': e.preventDefault(); undo(); break;
+            case 'KeyZ': e.preventDefault(); if (e.shiftKey) redo(); else undo(); break;
+            case 'KeyU': e.preventDefault(); undo(); break;
+            case 'KeyY': e.preventDefault(); redo(); break;
             case 'KeyH': e.preventDefault(); hint(); break;
             case 'KeyF': e.preventDefault(); fillNotes(); break;
             default: break;
@@ -1443,7 +1477,7 @@
             app: 'app', home: 'home-screen', gameScreen: 'game-screen', board: 'board', numpad: 'numpad',
             controls: 'controls', solvedActions: 'solved-actions', messages: 'message-container', announcer: 'sr-announcer',
             pauseOverlay: 'pause-overlay', pauseSub: 'pause-sub', pauseBtn: 'pause-btn', resumeBtn: 'resume-btn',
-            undoBtn: 'undo-btn', eraseBtn: 'erase-btn', notesBtn: 'notes-btn', hintBtn: 'hint-btn', fillBtn: 'fill-btn',
+            undoBtn: 'undo-btn', redoBtn: 'redo-btn', eraseBtn: 'erase-btn', notesBtn: 'notes-btn', hintBtn: 'hint-btn', fillBtn: 'fill-btn',
             notesState: 'notes-state', hintCount: 'hint-count', timer: 'timer', difficultyLabel: 'game-difficulty',
             mistakes: 'game-mistakes', mistakesWrap: 'game-mistakes-wrap',
             continueBtn: 'continue-btn', continueSub: 'continue-sub', solvedNewBtn: 'solved-new-btn',
@@ -1514,6 +1548,8 @@
             else inputDigit(+b.dataset.digit, false);
         });
         el.undoBtn.addEventListener('click', undo);
+        el.redoBtn.addEventListener('click', redo);
+        $('set-haptics').hidden = !canVibrate;
         el.eraseBtn.addEventListener('click', erase);
         el.notesBtn.addEventListener('click', toggleNotesMode);
         el.fillBtn.addEventListener('click', fillNotes);

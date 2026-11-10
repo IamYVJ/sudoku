@@ -856,8 +856,8 @@ button { font: inherit; color: inherit; }
 /* ── Tools & numpad ── */
 .tools {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
-    gap: 8px;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
 }
 
 .tool-btn {
@@ -1337,11 +1337,13 @@ kbd {
     .numpad { grid-template-columns: repeat(3, 1fr); gap: 8px; }
     .num-key { min-height: 0; height: clamp(44px, 11dvh, 76px); }
     .num-digit { font-size: clamp(1.3rem, 3.2vh, 1.9rem); }
-    .tools { grid-template-columns: repeat(5, 1fr); }
+    .tools { grid-template-columns: repeat(3, 1fr); gap: 8px; }
     .solved-actions { grid-column: 2; }
 }
 
 @media (max-width: 480px) {
+    /* Six tools leave no room for the On/Off text; the pressed style already shows it. */
+    #notes-state { display: none; }
     .home-content { padding: 64px 14px max(28px, env(safe-area-inset-bottom)); gap: 20px; }
     .settings-card { padding: 20px 16px; }
     .game-main { padding: 12px 10px max(10px, env(safe-area-inset-bottom)); gap: 10px; }
@@ -1353,7 +1355,8 @@ kbd {
 
 @media (max-width: 360px) {
     .numpad { gap: 3px; }
-    .tools { gap: 6px; }
+    .tools { gap: 4px; }
+    .tool-btn { letter-spacing: 0.04em; }
     .tool-btn { min-height: 48px; }
     .game-header { gap: 8px; padding-left: 10px; padding-right: 10px; }
     .header-actions { gap: 6px; }

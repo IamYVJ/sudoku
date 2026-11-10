@@ -168,7 +168,7 @@
 
             <div class="board-wrap" id="board-wrap">
                 <div id="board" class="board" role="grid" aria-label="Sudoku board" aria-rowcount="9" aria-colcount="9" aria-describedby="board-help"></div>
-                <p id="board-help" class="sr-only">Arrow keys move. 1 to 9 enters a digit, Shift plus a digit toggles a note. Backspace erases. N toggles notes mode, F fills all notes, Z undoes, H gives a hint, P pauses.</p>
+                <p id="board-help" class="sr-only">Arrow keys move. 1 to 9 enters a digit, Shift plus a digit toggles a note. Backspace erases. N toggles notes mode, F fills all notes, Z undoes, Y redoes, H gives a hint, P pauses.</p>
                 <div id="pause-overlay" class="pause-overlay" hidden>
                     <p class="pause-title">Paused</p>
                     <p class="pause-sub" id="pause-sub">Medium · 0:00</p>
@@ -185,6 +185,10 @@
                     <button class="tool-btn" id="undo-btn" type="button">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
                         <span class="tool-label">Undo</span>
+                    </button>
+                    <button class="tool-btn" id="redo-btn" type="button">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
+                        <span class="tool-label">Redo</span>
                     </button>
                     <button class="tool-btn" id="erase-btn" type="button">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l10-10a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L11 21"/><path d="M7 21h14M9 11l6 6"/></svg>
@@ -248,6 +252,7 @@
                 <dt><kbd>⌫</kbd> <kbd>Del</kbd> <kbd>0</kbd></dt><dd>Erase</dd>
                 <dt><kbd>N</kbd></dt><dd>Notes mode</dd>
                 <dt><kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Z</kbd></dt><dd>Undo</dd>
+                <dt><kbd>Y</kbd> / <kbd>Shift</kbd>+<kbd>Z</kbd></dt><dd>Redo</dd>
                 <dt><kbd>F</kbd></dt><dd>Fill all notes</dd>
                 <dt><kbd>H</kbd></dt><dd>Hint</dd>
                 <dt><kbd>P</kbd></dt><dd>Pause</dd>
@@ -285,6 +290,13 @@
                     <span class="switch-text">
                         <span class="switch-title">Strict mode</span>
                         <span class="switch-desc">Wrong digits are marked straight away, and three mistakes end the game. Starts with your next puzzle.</span>
+                    </span>
+                    <span class="switch" aria-hidden="true"></span>
+                </button>
+                <button class="switch-row" type="button" role="switch" aria-checked="true" id="set-haptics" data-pref="haptics" hidden>
+                    <span class="switch-text">
+                        <span class="switch-title">Haptics</span>
+                        <span class="switch-desc">A light tap when you place a digit, and a buzz for clashes and mistakes.</span>
                     </span>
                     <span class="switch" aria-hidden="true"></span>
                 </button>

@@ -27,7 +27,9 @@ generated right in your browser — with pencil-mark notes, hints, undo, dark mo
 - **Hints that teach** — a hint fixes a mistake first; otherwise it fills the next logical
   step and says why ("Box 5 needs a 7, and this is the only cell where 7 fits"), naming any
   pairs or locked candidates it used. Best times only count hint-free solves.
-- **Undo and erase** — step back through every move.
+- **Undo, redo and erase** — step back and forward through every move.
+- **Haptics** — on phones that support it, a light tap confirms each digit and a short buzz
+  flags a clash or mistake (switch it off in Settings).
 - **Cell-first or digit-first** — tap a cell then a number, or switch to digit-first in
   Settings: pick a number once, then tap every cell it belongs in.
 - **Timer with pause** — pausing hides the board; the clock stops when you switch tabs.
@@ -47,6 +49,7 @@ generated right in your browser — with pencil-mark notes, hints, undo, dark mo
 | `Backspace` / `Delete` / `0` | Erase |
 | `N` | Notes mode |
 | `Z` / `Ctrl+Z` | Undo |
+| `Y` / `Shift+Z` / `Ctrl+Y` | Redo |
 | `F` | Fill all notes |
 | `H` | Hint |
 | `P` | Pause |
