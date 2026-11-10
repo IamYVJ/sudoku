@@ -55,6 +55,7 @@
     --cell-same:     rgba(182, 133, 12, .16);
     --cell-selected: rgba(182, 133, 12, .26);
     --cell-conflict: rgba(216, 68, 59, .13);
+    --cell-diag:     rgba(182, 133, 12, .14);
     --digit-given:   var(--text-primary);
     --digit-user:    #9a6f06;
     --digit-hint:    var(--ok);
@@ -93,6 +94,7 @@
     --cell-same:     rgba(240, 199, 94, .16);
     --cell-selected: rgba(240, 199, 94, .26);
     --cell-conflict: rgba(255, 107, 107, .16);
+    --cell-diag:     rgba(240, 199, 94, .13);
     --digit-user:    #f0c75e;
     --note-color:    rgba(242, 241, 238, .62);
 }
@@ -354,6 +356,10 @@ button { font: inherit; color: inherit; }
 }
 
 .difficulty-group { grid-template-columns: repeat(4, 1fr); }
+.variant-group { grid-template-columns: repeat(2, 1fr); }
+.variant-setting { margin-bottom: 22px; }
+.variant-btn .variant-icon { flex: none; }
+.variant-setting .difficulty-desc { margin-top: 10px; }
 
 .option-btn, .difficulty-btn {
     min-height: var(--tap);
@@ -749,7 +755,10 @@ button { font: inherit; color: inherit; }
 .board-row:last-child .cell { border-bottom: 0; }
 
 /* precedence: later wins */
-.cell.is-peer     { background: var(--cell-peer); }
+/* Diagonal tint is an overlay so it stays visible under peer/selection highlights. */
+.cell.is-diag::before { content: ""; position: absolute; inset: 0; background: var(--cell-diag); pointer-events: none; }
+.cell.is-diag .cell-value { position: relative; }
+.cell.is-peer    { background: var(--cell-peer); }
 .cell.is-hint-unit { background: var(--accent-soft); }
 .cell.is-same     { background: var(--cell-same); }
 .cell.is-conflict { background: var(--cell-conflict); }
@@ -1092,6 +1101,18 @@ button { font: inherit; color: inherit; }
 }
 
 .stats-block .result-stats { margin-bottom: 0; }
+
+/* Diagonal section heading in the stats modal */
+.stats-section { margin-top: 26px; padding-top: 18px; border-top: 1px solid var(--border-color); }
+.stats-section h3 {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 400;
+    color: var(--text-primary);
+    margin: 0;
+}
+.stats-section + .stats-block { margin-top: 12px; }
+.stats-section-empty { margin-top: 10px; text-align: left; }
 
 /* Trend sparkline */
 .trend { margin-top: 10px; }

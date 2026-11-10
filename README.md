@@ -12,6 +12,9 @@ generated right in your browser — with pencil-mark notes, hints, undo, dark mo
   - **Medium** — about 32 clues; still singles only, but you'll have to hunt for them.
   - **Hard** — needs pointing pairs, box/line reduction, or naked/hidden pairs.
   - **Expert** — near-minimal grids that go beyond pairs (think X-Wings and chains).
+- **Diagonal variant** — pick Diagonal on the home screen and both long diagonals (shaded
+  on the board) must also hold 1 to 9. It has the same four difficulties, unique solutions,
+  its own stats and trend lines, and hints and challenge links that understand the extra rule.
 - **Daily puzzle** — one puzzle a day, the same for everyone, with the difficulty rotating
   through the week. Solve it on consecutive days to build a streak, then share your time.
 - **Challenge a friend** — after a win, share a link to the exact same puzzle with your time
@@ -34,7 +37,7 @@ generated right in your browser — with pencil-mark notes, hints, undo, dark mo
   Settings: pick a number once, then tap every cell it belongs in.
 - **Timer with pause** — pausing hides the board; the clock stops when you switch tabs.
 - **Picks up where you left off** — your game is saved as you play.
-- **Local stats per difficulty** — played, win rate, best and average time, a trend line of your recent solves with a last-10 average, plus daily streaks and a 30-day Daily calendar.
+- **Local stats per difficulty** (Classic and Diagonal kept apart) — played, win rate, best and average time, a trend line of your recent solves with a last-10 average, plus daily streaks and a 30-day Daily calendar.
 - **Works offline, installable** — after the first visit the game and puzzle generator run
   without a connection, and it can be added to your home screen as an app.
 - **Dark / light theme**, remembered across visits.

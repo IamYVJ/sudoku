@@ -94,6 +94,17 @@
             <div class="home-divider" id="home-divider"><span>or start a new puzzle</span></div>
 
             <div class="settings-card">
+                <div class="setting-group variant-setting">
+                    <div class="setting-label"><span class="label-text" id="variant-label">Variant</span></div>
+                    <div class="button-group variant-group" role="radiogroup" aria-labelledby="variant-label">
+                        <button class="option-btn variant-btn" type="button" role="radio" aria-checked="true" data-variant="classic">Classic</button>
+                        <button class="option-btn variant-btn" type="button" role="radio" aria-checked="false" data-variant="diagonal">
+                            <svg class="variant-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="1.5" y="1.5" width="13" height="13" rx="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M4.2 4.2L11.8 11.8M11.8 4.2L4.2 11.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+                            Diagonal
+                        </button>
+                    </div>
+                    <p class="difficulty-desc" id="variant-description"></p>
+                </div>
                 <div class="setting-group">
                     <div class="setting-label"><span class="label-text" id="difficulty-label">Difficulty</span></div>
                     <div class="button-group difficulty-group" role="radiogroup" aria-labelledby="difficulty-label">
@@ -250,6 +261,7 @@
                 <li>Every puzzle has exactly one solution. Easy to Hard never need guessing.</li>
                 <li>After a win, Challenge a friend copies a link to the same puzzle with your time to beat.</li>
                 <li>Works offline once loaded. To install it, use Install app in Settings, or on iPhone and iPad tap Share, then Add to Home Screen.</li>
+                <li>Diagonal is a variant you pick on the home screen: the two long diagonals (shaded on the board) must also hold 1 to 9 exactly once. Its stats and times are kept apart from Classic, and the Daily is always Classic.</li>
                 <li>The Daily puzzle is the same for everyone each day. Solve it on consecutive days to build a streak, then share your result.</li>
             </ul>
             <dl class="help-keys">

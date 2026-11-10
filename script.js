@@ -47,7 +47,12 @@
     const prefersReducedMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     const bit = (d) => 1 << (d - 1);
     const label = (d) => E.DIFFICULTIES[d].label;
-    const gameName = (g) => (g.mode === 'daily' ? 'Daily #' + g.number + ' · ' : '') + label(g.difficulty);
+    const VARIANT_NAMES = ['classic', 'diagonal'];
+    const isDiag = (v) => v === 'diagonal';
+    // "Medium" for classic, "Diagonal · Medium" for the diagonal variant.
+    const levelName = (g) => (isDiag(g.variant) ? 'Diagonal · ' : '') + label(g.difficulty);
+    const gameName = (g) => (g.mode === 'daily' ? 'Daily #' + g.number + ' · ' : '') + levelName(g);
+    const gameUnits = (g) => E.variant(g && g.variant);
     const hintText = (n) => (n ? n + (n === 1 ? ' hint' : ' hints') : 'no hints');
     const mistakeText = (n) => (n ? n + (n === 1 ? ' mistake' : ' mistakes') : 'no mistakes');
 
@@ -55,6 +60,7 @@
     const state = {
         screen: 'home',
         difficulty: 'medium',
+        variant: 'classic',             // home picker: 'classic' | 'diagonal'
         game: null,                     // the active game (one of state.games)
         games: { classic: null, daily: null },
         selected: -1,
@@ -188,32 +194,41 @@
     function defaultStats() {
         const s = { v: 1 };
         DIFFS.forEach((d) => { s[d] = { played: 0, won: 0, totalMs: 0, bestMs: null }; });
+        s.diagonal = {};
+        DIFFS.forEach((d) => { s.diagonal[d] = { played: 0, won: 0, totalMs: 0, bestMs: null }; });
         return s;
     }
     function loadStats() {
         const raw = store.get(KEYS.stats);
         const out = defaultStats();
         if (!raw || raw.v !== 1) return out;
+        const num = (x) => (typeof x === 'number' && isFinite(x) && x >= 0 ? x : 0);
+        const read = (r, into) => {
+            if (!r || typeof r !== 'object') return;
+            into.played = num(r.played);
+            into.won = num(r.won);
+            into.totalMs = num(r.totalMs);
+            into.bestMs = typeof r.bestMs === 'number' && isFinite(r.bestMs) && r.bestMs > 0 ? r.bestMs : null;
+        };
         for (const d of DIFFS) {
-            const r = raw[d];
-            if (!r || typeof r !== 'object') continue;
-            const num = (x) => (typeof x === 'number' && isFinite(x) && x >= 0 ? x : 0);
-            out[d].played = num(r.played);
-            out[d].won = num(r.won);
-            out[d].totalMs = num(r.totalMs);
-            out[d].bestMs = typeof r.bestMs === 'number' && isFinite(r.bestMs) && r.bestMs > 0 ? r.bestMs : null;
+            read(raw[d], out[d]);
+            if (raw.diagonal && typeof raw.diagonal === 'object') read(raw.diagonal[d], out.diagonal[d]);
         }
         return out;
     }
+    // The stats bucket for a variant + difficulty.
+    function statsFor(diff, variant) { return isDiag(variant) ? stats.diagonal[diff] : stats[diff]; }
     function saveStats() { store.set(KEYS.stats, stats); }
-    function recordWin(diff, ms, hints) {
-        const s = stats[diff];
+    function recordWin(diff, ms, hints, variant) {
+        const s = statsFor(diff, variant);
         s.won++;
         s.totalMs += ms;
         let isBest = false;
         if (hints === 0 && (s.bestMs === null || ms < s.bestMs)) { s.bestMs = ms; isBest = true; }
         saveStats();
-        solveLog.games.push({ d: diff, ms, h: hints, t: Date.now() });
+        const entry = { d: diff, ms, h: hints, t: Date.now() };
+        if (isDiag(variant)) entry.v = 'diagonal';
+        solveLog.games.push(entry);
         trimHistory();
         saveHistory();
         return { isBest, best: s.bestMs, avg: s.won ? s.totalMs / s.won : null };
@@ -227,27 +242,30 @@
         if (!raw || raw.v !== 1 || !Array.isArray(raw.games)) return;
         raw.games.forEach((g) => {
             if (!g || !DIFFS.includes(g.d) || typeof g.ms !== 'number' || !isFinite(g.ms) || !(g.ms > 0)) return;
-            solveLog.games.push({
+            const e = {
                 d: g.d, ms: g.ms,
                 h: typeof g.h === 'number' && isFinite(g.h) && g.h > 0 ? Math.floor(g.h) : 0,
                 t: typeof g.t === 'number' && isFinite(g.t) ? g.t : 0
-            });
+            };
+            if (g.v === 'diagonal') e.v = 'diagonal';
+            solveLog.games.push(e);
         });
         trimHistory();
     }
-    // Keeps only the newest HISTORY_CAP entries of each difficulty.
+    // Keeps only the newest HISTORY_CAP entries of each variant + difficulty.
     function trimHistory() {
         const seen = {};
         const kept = [];
         for (let i = solveLog.games.length - 1; i >= 0; i--) {
             const g = solveLog.games[i];
-            seen[g.d] = (seen[g.d] || 0) + 1;
-            if (seen[g.d] <= HISTORY_CAP) kept.push(g);
+            const k = (isDiag(g.v) ? 'diagonal:' : '') + g.d;
+            seen[k] = (seen[k] || 0) + 1;
+            if (seen[k] <= HISTORY_CAP) kept.push(g);
         }
         solveLog.games = kept.reverse();
     }
     function saveHistory() { store.set(KEYS.history, solveLog); }
-    function historyFor(diff) { return solveLog.games.filter((g) => g.d === diff); }
+    function historyFor(diff, variant) { return solveLog.games.filter((g) => g.d === diff && isDiag(g.v) === isDiag(variant)); }
 
     // ── Daily results & streaks ──
     function loadDaily() {
@@ -295,6 +313,7 @@
         const s = store.get(KEYS.settings);
         if (s && s.v === 1) {
             if (DIFFS.includes(s.difficulty)) state.difficulty = s.difficulty;
+            if (VARIANT_NAMES.includes(s.variant)) state.variant = s.variant;
             if (s.prefs && typeof s.prefs === 'object') {
                 Object.keys(state.prefs).forEach((k) => { if (typeof s.prefs[k] === 'boolean') state.prefs[k] = s.prefs[k]; });
             }
@@ -304,7 +323,7 @@
     }
     function saveSettings() {
         store.set(KEYS.settings, {
-            v: 1, difficulty: state.difficulty, screen: state.screen,
+            v: 1, difficulty: state.difficulty, variant: state.variant, screen: state.screen,
             active: state.game && state.game.mode === 'daily' ? 'daily' : 'classic',
             prefs: state.prefs
         });
@@ -334,7 +353,7 @@
         store.set(g.mode === 'daily' ? KEYS.dailyGame : KEYS.game, {
             v: 1, mode: g.mode, date: g.date, number: g.number, challengeMs: g.challengeMs || 0,
             strict: !!g.strict, mistakes: g.mistakes || 0,
-            difficulty: g.difficulty, seed: g.seed, level: g.level,
+            difficulty: g.difficulty, variant: g.variant, seed: g.seed, level: g.level,
             puzzle: E.stringify(g.puzzle), solution: E.stringify(g.solution), values: E.stringify(g.values),
             notes: Array.from(g.notes), hinted: Array.from(g.hinted), hintsUsed: g.hintsUsed,
             elapsed: Math.round(currentElapsed()),
@@ -374,6 +393,9 @@
             };
             const undo = readHistory(r.undo);
             const redo = readHistory(r.redo);
+            // Saves from before the variants have no field: they are classic.
+            const variant = mode !== 'daily' && r.variant === 'diagonal' ? 'diagonal' : 'classic';
+            if (!E.isValidSolution(r.solution, variant)) throw 0;
             const puzzle = E.parse(r.puzzle);
             const given = new Uint8Array(81);
             for (let i = 0; i < 81; i++) given[i] = puzzle[i] ? 1 : 0;
@@ -381,7 +403,7 @@
                 mode, date: mode === 'daily' ? r.date : null, number: mode === 'daily' ? Number(r.number) || 0 : 0,
                 challengeMs: Math.max(0, Number(r.challengeMs) || 0),
                 strict: !!r.strict, mistakes: Math.min(MAX_MISTAKES - 1, Math.max(0, r.mistakes | 0)),
-                difficulty: r.difficulty, seed: r.seed >>> 0, level: Number(r.level) || 0,
+                difficulty: r.difficulty, variant, seed: r.seed >>> 0, level: Number(r.level) || 0,
                 puzzle, solution: E.parse(r.solution), values: E.parse(r.values),
                 notes: Uint16Array.from(r.notes), given, hinted: new Set(hinted),
                 hintsUsed: Math.max(0, Number(r.hintsUsed) | 0),
@@ -494,7 +516,7 @@
     function generateOnMainThread(diff, opts) {
         const o = opts || {};
         const seed = o.seed === undefined ? newSeed() : o.seed;
-        return nextFrame().then(() => E.generate(diff, { seed, budgetMs: 250, maxAttempts: o.maxAttempts }));
+        return nextFrame().then(() => E.generate(diff, { seed, budgetMs: 250, maxAttempts: o.maxAttempts, variant: o.variant }));
     }
 
     function generateRaw(diff, opts) {
@@ -505,28 +527,34 @@
             const id = ++reqSeq;
             pending.set(id, { resolve, reject });
             const seed = o.seed === undefined ? newSeed() : o.seed;
-            w.postMessage({ id, difficulty: diff, seed, budgetMs: 4000, maxAttempts: o.maxAttempts });
+            w.postMessage({ id, difficulty: diff, seed, budgetMs: 4000, maxAttempts: o.maxAttempts, variant: o.variant });
         }).catch(() => generateOnMainThread(diff, opts));
     }
 
-    function requestPuzzle(diff) {
-        if (prefetched[diff]) { const p = prefetched[diff]; delete prefetched[diff]; return Promise.resolve(p); }
-        if (inflight[diff]) {
-            return inflight[diff].then(() => {
-                if (prefetched[diff]) { const p = prefetched[diff]; delete prefetched[diff]; return p; }
-                return generateRaw(diff);
+    // Prefetched puzzles are kept per variant + difficulty.
+    const pkey = (diff, variant) => (isDiag(variant) ? 'diagonal:' : 'classic:') + diff;
+
+    function requestPuzzle(diff, variant) {
+        const k = pkey(diff, variant);
+        const o = { variant: isDiag(variant) ? 'diagonal' : 'classic' };
+        if (prefetched[k]) { const p = prefetched[k]; delete prefetched[k]; return Promise.resolve(p); }
+        if (inflight[k]) {
+            return inflight[k].then(() => {
+                if (prefetched[k]) { const p = prefetched[k]; delete prefetched[k]; return p; }
+                return generateRaw(diff, o);
             });
         }
-        return generateRaw(diff);
+        return generateRaw(diff, o);
     }
 
-    function prefetch(diff) {
-        if (prefetched[diff] || inflight[diff] || getWorker() === false) return;
+    function prefetch(diff, variant) {
+        const k = pkey(diff, variant);
+        if (prefetched[k] || inflight[k] || getWorker() === false) return;
         const run = () => {
-            if (prefetched[diff] || inflight[diff]) return;
-            inflight[diff] = generateRaw(diff).then((p) => { prefetched[diff] = p; })
+            if (prefetched[k] || inflight[k]) return;
+            inflight[k] = generateRaw(diff, { variant: isDiag(variant) ? 'diagonal' : 'classic' }).then((p) => { prefetched[k] = p; })
                 .catch(() => { /* ignore */ })
-                .then(() => { delete inflight[diff]; });
+                .then(() => { delete inflight[k]; });
         };
         if (window.requestIdleCallback) window.requestIdleCallback(run, { timeout: 3000 });
         else setTimeout(run, 600);
@@ -541,13 +569,14 @@
         if (!g || g.status !== 'playing' || !(gameElapsed(g) > 0 || g.undo.length || g.hintsUsed)) return true;
         return confirmDialog({
             title,
-            text: 'Your ' + label(g.difficulty) + ' puzzle in progress (' + fmt(gameElapsed(g)) + ') will be lost.',
+            text: 'Your ' + levelName(g) + ' puzzle in progress (' + fmt(gameElapsed(g)) + ') will be lost.',
             okLabel, cancelLabel: 'Keep playing'
         });
     }
 
-    async function startNewGame(diff) {
+    async function startNewGame(diff, variant) {
         if (starting) return;
+        variant = isDiag(variant) ? 'diagonal' : 'classic';
         if (!(await confirmReplaceClassic('New puzzle?', 'New puzzle'))) return;
         starting = true;
         const btn = el.startBtn;
@@ -558,13 +587,13 @@
             el.startLabel.textContent = 'Generating…';
         }, 150);
         try {
-            const p = await requestPuzzle(diff);
+            const p = await requestPuzzle(diff, variant);
             createGame(p, { mode: 'classic' });
-            stats[diff].played++;
+            statsFor(diff, variant).played++;
             saveStats();
             saveGame();
             showGame({ paused: false });
-            prefetch(diff);
+            prefetch(diff, variant);
         } finally {
             clearTimeout(busyTimer);
             btn.classList.remove('is-busy');
@@ -599,7 +628,7 @@
         const g = {
             mode, date: m.date || null, number: m.number || 0, challengeMs: m.challengeMs || 0,
             strict: state.prefs.strict, mistakes: 0,
-            difficulty: p.difficulty, seed: p.seed, level: p.level,
+            difficulty: p.difficulty, variant: mode === 'classic' && isDiag(p.variant) ? 'diagonal' : 'classic', seed: p.seed, level: p.level,
             puzzle, solution: E.parse(p.solution), values: puzzle.slice(),
             notes: new Uint16Array(81), given, hinted: new Set(),
             hintsUsed: 0, elapsed: 0, undo: [], redo: [], createdAt: Date.now(), status: 'playing',
@@ -613,13 +642,13 @@
 
     // ── Challenges ──
     function challengeLink(g) {
-        const code = E.encodeChallenge(g.difficulty, E.stringify(g.puzzle));
+        const code = E.encodeChallenge(g.difficulty, E.stringify(g.puzzle), g.variant);
         return siteUrl() + '?c=' + code + '&t=' + Math.max(1, Math.round(g.elapsed / 1000));
     }
 
     function challengeText(g) {
         const ms = Math.round(g.elapsed);
-        return 'I solved this ' + label(g.difficulty) + ' Sudoku in ' + fmt(ms) +
+        return 'I solved this ' + levelName(g) + ' Sudoku in ' + fmt(ms) +
             (g.hintsUsed ? ' (' + hintText(g.hintsUsed) + ')' : ' with no hints') + '. Can you beat it?\n' + challengeLink(g);
     }
 
@@ -629,15 +658,16 @@
         if (dec) {
             let clues = 0;
             for (let i = 0; i < 81; i++) if (dec.puzzle[i] !== '0') clues++;
-            if (clues >= 17 && E.countSolutions(dec.puzzle, 2) === 1) solution = E.solve(dec.puzzle);
+            // Diagonal grids can be unique with fewer clues than the classic 17.
+            if (clues >= (isDiag(dec.variant) ? 10 : 17) && E.countSolutions(dec.puzzle, 2, dec.variant) === 1) solution = E.solve(dec.puzzle, null, dec.variant);
         }
         if (!solution) { toast('That challenge link is broken', 2600); return; }
         if (!(await confirmReplaceClassic('Play the challenge?', 'Play challenge'))) return;
         const g = createGame({
-            difficulty: dec.difficulty, seed: 0, level: E.grade(dec.puzzle).level,
+            difficulty: dec.difficulty, variant: dec.variant, seed: 0, level: E.grade(dec.puzzle, dec.variant).level,
             puzzle: dec.puzzle, solution: E.stringify(solution)
         }, { mode: 'classic', challengeMs: ch.ms });
-        stats[g.difficulty].played++;
+        statsFor(g.difficulty, g.variant).played++;
         saveStats();
         saveGame();
         showGame({ paused: false });
@@ -687,7 +717,7 @@
             else res = dailyData.results[g.date];
             store.del(KEYS.dailyGame);
         } else {
-            res = recordWin(g.difficulty, ms, g.hintsUsed);
+            res = recordWin(g.difficulty, ms, g.hintsUsed, g.variant);
             store.del(KEYS.game);
         }
         state.games[g.mode] = null;
@@ -727,10 +757,10 @@
     // Starts the same grid again from scratch (after a strict-mode loss).
     function retryGame(g) {
         const ng = createGame({
-            difficulty: g.difficulty, seed: g.seed, level: g.level,
+            difficulty: g.difficulty, variant: g.variant, seed: g.seed, level: g.level,
             puzzle: E.stringify(g.puzzle), solution: E.stringify(g.solution)
         }, { mode: g.mode, date: g.date, number: g.number, challengeMs: g.challengeMs });
-        if (ng.mode === 'classic') { stats[ng.difficulty].played++; saveStats(); }
+        if (ng.mode === 'classic') { statsFor(ng.difficulty, ng.variant).played++; saveStats(); }
         saveGame();
         showGame({ paused: false });
     }
@@ -785,7 +815,7 @@
         ]);
         $('win-best-badge').hidden = !res.isBest;
         $('win-title').textContent = 'Solved';
-        $('win-sub').textContent = label(g.difficulty) + ' · ' + hintText(g.hintsUsed) + (g.strict ? ' · ' + mistakeText(g.mistakes) : '');
+        $('win-sub').textContent = levelName(g) + ' · ' + hintText(g.hintsUsed) + (g.strict ? ' · ' + mistakeText(g.mistakes) : '');
         const next = $('win-next');
         next.hidden = !g.challengeMs;
         if (g.challengeMs) {
@@ -796,8 +826,8 @@
         }
         $('win-share-btn').hidden = false;
         winShare = () => shareText(challengeText(g));
-        $('win-new-btn').textContent = 'New ' + label(g.difficulty) + ' Game';
-        winPrimary = () => { closeModal('win-modal'); startNewGame(g.difficulty); };
+        $('win-new-btn').textContent = 'New ' + levelName(g) + ' Game';
+        winPrimary = () => { closeModal('win-modal'); startNewGame(g.difficulty, g.variant); };
         openModal('win-modal');
     }
 
@@ -876,8 +906,9 @@
         c.fill(0);
         if (!g) return;
         const vals = g.values;
-        for (let u = 0; u < 27; u++) {
-            const cs = E.UNITS[u];
+        const units = gameUnits(g).UNITS;
+        for (let u = 0; u < units.length; u++) {
+            const cs = units[u];
             const count = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
             for (let k = 0; k < 9; k++) count[vals[cs[k]]]++;
             for (let k = 0; k < 9; k++) { const v = vals[cs[k]]; if (v && count[v] > 1) c[cs[k]] = 1; }
@@ -886,7 +917,8 @@
 
     function cellLabel(i) {
         const g = state.game;
-        const base = 'Row ' + (E.ROW[i] + 1) + ', column ' + (E.COL[i] + 1) + ', ';
+        const onDiag = isDiag(g.variant) && (E.ROW[i] === E.COL[i] || E.ROW[i] + E.COL[i] === 8);
+        const base = 'Row ' + (E.ROW[i] + 1) + ', column ' + (E.COL[i] + 1) + ', ' + (onDiag ? 'diagonal, ' : '');
         const v = g.values[i];
         if (v) {
             let kind = '';
@@ -904,10 +936,13 @@
         if (!g) return;
         const sel = state.selected;
         const selVal = state.armed || (sel >= 0 ? g.values[sel] : 0);
+        const vt = gameUnits(g);
+        const diag = isDiag(g.variant);
+        el.board.classList.toggle('is-diagonal', diag);
         let peerSet = null;
-        if (sel >= 0) { peerSet = new Uint8Array(81); const p = E.PEERS[sel]; for (let k = 0; k < p.length; k++) peerSet[p[k]] = 1; }
+        if (sel >= 0) { peerSet = new Uint8Array(81); const p = vt.PEERS[sel]; for (let k = 0; k < p.length; k++) peerSet[p[k]] = 1; }
         const hintSet = new Uint8Array(81);
-        if (state.hintUnit >= 0) E.UNITS[state.hintUnit].forEach((c) => { hintSet[c] = 1; });
+        if (state.hintUnit >= 0 && vt.UNITS[state.hintUnit]) vt.UNITS[state.hintUnit].forEach((c) => { hintSet[c] = 1; });
         const tabIdx = sel >= 0 ? sel : 0;
         for (let i = 0; i < 81; i++) {
             const cell = cells[i];
@@ -915,6 +950,7 @@
             const isGiven = !!g.given[i];
             const isHint = g.hinted.has(i);
             const cl = cell.classList;
+            cl.toggle('is-diag', diag && (E.ROW[i] === E.COL[i] || E.ROW[i] + E.COL[i] === 8));
             cl.toggle('is-given', isGiven);
             cl.toggle('is-hint', isHint);
             cl.toggle('is-user', !!v && !isGiven && !isHint);
@@ -991,7 +1027,7 @@
         const ms = currentElapsed();
         state.lastShownSecond = Math.floor(ms / 1000);
         // The header line is narrow on phones: no daily number, and no counter once the game is over.
-        const short = (g.mode === 'daily' ? 'Daily · ' : '') + label(g.difficulty);
+        const short = (g.mode === 'daily' ? 'Daily · ' : '') + levelName(g);
         el.difficultyLabel.textContent = short + (g.status === 'won' ? ' · Solved' : g.status === 'lost' ? ' · Game over' : '');
         el.mistakesWrap.hidden = !g.strict || g.status !== 'playing';
         if (g.strict) {
@@ -1106,7 +1142,8 @@
         const changes = [[i, g.values[i], g.notes[i]]];
         g.values[i] = d;
         g.notes[i] = 0;
-        const peers = E.PEERS[i];
+        const vt = gameUnits(g);
+        const peers = vt.PEERS[i];
         for (let k = 0; k < peers.length; k++) {
             const p = peers[k];
             if (!g.values[p] && (g.notes[p] & bit(d))) { changes.push([p, 0, g.notes[p]]); g.notes[p] &= ~bit(d); }
@@ -1115,12 +1152,11 @@
         computeConflicts();
         const done = [];
         const parts = [];
-        const names = ['row ' + (E.ROW[i] + 1), 'column ' + (E.COL[i] + 1), 'box ' + (E.BOX[i] + 1)];
-        E.CELL_UNITS[i].forEach((u, n) => {
-            const cs = E.UNITS[u];
+        vt.CELL_UNITS[i].forEach((u) => {
+            const cs = vt.UNITS[u];
             let full = true;
             for (let k = 0; k < 9; k++) if (!g.values[cs[k]] || state.conflicts[cs[k]]) { full = false; break; }
-            if (full) { cs.forEach((c) => done.push(c)); parts.push(names[n] + ' complete'); }
+            if (full) { cs.forEach((c) => done.push(c)); parts.push(UNIT_NAME(u).toLowerCase() + ' complete'); }
         });
         let msg = 'Row ' + (E.ROW[i] + 1) + ', column ' + (E.COL[i] + 1) + ': ' + d;
         if (state.conflicts[i]) msg += ' — clashes with another ' + d;
@@ -1197,7 +1233,7 @@
         const changes = [];
         for (let i = 0; i < 81; i++) {
             if (g.values[i]) continue;
-            const m = E.candidates(g.values, i);
+            const m = E.candidates(g.values, i, g.variant);
             if (m !== g.notes[i]) { changes.push([i, 0, g.notes[i]]); g.notes[i] = m; }
         }
         if (!changes.length) { toast('Notes are already complete'); return; }
@@ -1215,10 +1251,10 @@
         saveGame();
     }
 
-    const UNIT_NAME = (u) => (u < 9 ? 'Row ' + (u + 1) : u < 18 ? 'Column ' + (u - 8) : 'Box ' + (u - 17));
+    const UNIT_NAME = (u) => (u < 9 ? 'Row ' + (u + 1) : u < 18 ? 'Column ' + (u - 8) : u < 27 ? 'Box ' + (u - 17) : u === 27 ? 'The main diagonal' : 'The anti-diagonal');
     const VIA_NAME = { locked: 'locked candidates', nakedPair: 'naked pairs', hiddenPair: 'hidden pairs' };
 
-    function explainStep(st) {
+    function explainStep(st, variant) {
         const d = st.digit;
         let title, text;
         if (st.technique === 'hiddenSingle') {
@@ -1226,7 +1262,7 @@
             text = UNIT_NAME(st.unit) + ' needs a ' + d + ', and this is the only cell in it where ' + d + ' fits.';
         } else {
             title = 'Naked single';
-            text = 'Every other digit already appears in this cell\'s row, column or box, so only ' + d + ' fits.';
+            text = 'Every other digit already appears in this cell\'s row, column' + (isDiag(variant) && (E.ROW[st.cell] === E.COL[st.cell] || E.ROW[st.cell] + E.COL[st.cell] === 8) ? ', box or diagonal' : ' or box') + ', so only ' + d + ' fits.';
         }
         if (st.via.length) {
             const names = st.via.map((v) => VIA_NAME[v]);
@@ -1250,10 +1286,10 @@
             note = { title: 'Mistake fixed', text: 'That ' + g.values[t] + ' was wrong. This cell is ' + g.solution[t] + '.' };
         } else {
             // 2. The next logical step, preferring the selected cell.
-            const st = E.findStep(g.values, sel >= 0 && editable(sel) && !g.values[sel] ? sel : -1);
+            const st = E.findStep(g.values, sel >= 0 && editable(sel) && !g.values[sel] ? sel : -1, g.variant);
             if (st && st.digit === g.solution[st.cell]) {
                 t = st.cell;
-                note = explainStep(st);
+                note = explainStep(st, g.variant);
                 unit = st.technique === 'hiddenSingle' ? st.unit : -1;
             }
         }
@@ -1262,7 +1298,7 @@
             let best = [], bestN = 10;
             for (let i = 0; i < 81; i++) {
                 if (g.values[i]) continue;
-                const n = E.POP[E.candidates(g.values, i)];
+                const n = E.POP[E.candidates(g.values, i, g.variant)];
                 if (n < bestN) { bestN = n; best = [i]; } else if (n === bestN) best.push(i);
             }
             if (best.length) t = best[(Math.random() * best.length) | 0];
@@ -1274,7 +1310,7 @@
         g.notes[t] = 0;
         g.hinted.add(t);
         g.hintsUsed++;
-        const peers = E.PEERS[t];
+        const peers = gameUnits(g).PEERS[t];
         for (let k = 0; k < peers.length; k++) { const p = peers[k]; if (!g.values[p]) g.notes[p] &= ~bit(d); }
         const strip = (list) => list.map((e) => ({ c: e.c.filter((x) => x[0] !== t), s: e.s })).filter((e) => e.c.length);
         g.undo = strip(g.undo);
@@ -1414,9 +1450,9 @@
         wrap.appendChild(legend);
         return wrap;
     }
-    function trendBlock(diff) {
-        const times = historyFor(diff).map((g) => g.ms);
-        if (!stats[diff].played && !times.length) return null;
+    function trendBlock(diff, variant) {
+        const times = historyFor(diff, variant).map((g) => g.ms);
+        if (!statsFor(diff, variant).played && !times.length) return null;
         const box = document.createElement('div');
         box.className = 'trend';
         if (times.length < 2) {
@@ -1464,15 +1500,32 @@
             ['Max', String(st.max)],
             ['Best', st.best ? fmt(st.best) : '—']
         ], dailyCalendar());
-        DIFFS.forEach((d) => {
-            const s = stats[d];
-            addBlock(label(d), [
+        const addLevel = (d, variant) => {
+            const s = statsFor(d, variant);
+            addBlock((isDiag(variant) ? 'Diagonal · ' : '') + label(d), [
                 ['Played', String(s.played)],
                 ['Win %', s.played ? Math.round((s.won / s.played) * 100) + '%' : '—'],
                 ['Best', s.bestMs ? fmt(s.bestMs) : '—'],
                 ['Average', s.won ? fmt(s.totalMs / s.won) : '—']
-            ], trendBlock(d));
-        });
+            ], trendBlock(d, variant));
+        };
+        DIFFS.forEach((d) => addLevel(d, 'classic'));
+        // Diagonal results are kept apart from classic ones; only levels you have played get a block.
+        const section = document.createElement('div');
+        section.className = 'stats-section';
+        const sh = document.createElement('h3');
+        sh.textContent = 'Diagonal';
+        section.appendChild(sh);
+        body.appendChild(section);
+        const played = DIFFS.filter((d) => stats.diagonal[d].played > 0);
+        if (!played.length) {
+            const p = document.createElement('p');
+            p.className = 'trend-empty stats-section-empty';
+            p.textContent = 'No Diagonal games yet. Pick Diagonal on the home screen.';
+            body.appendChild(p);
+        } else {
+            played.forEach((d) => addLevel(d, 'diagonal'));
+        }
     }
 
     function openStats() { renderStatsModal(); openModal('stats-modal'); }
@@ -1536,10 +1589,18 @@
         if (hasSaved) {
             let filled = 0;
             for (let i = 0; i < 81; i++) if (g.values[i]) filled++;
-            el.continueSub.textContent = label(g.difficulty) + ' · ' + fmt(gameElapsed(g)) + ' · ' + filled + '/81';
+            el.continueSub.textContent = levelName(g) + ' · ' + fmt(gameElapsed(g)) + ' · ' + filled + '/81';
         }
         updateDailyCard();
         const d = state.difficulty;
+        const vr = state.variant;
+        el.variantBtns.forEach((b) => {
+            const on = b.dataset.variant === vr;
+            b.setAttribute('aria-checked', String(on));
+            b.classList.toggle('active', on);
+            b.tabIndex = on ? 0 : -1;
+        });
+        el.variantDesc.textContent = isDiag(vr) ? 'Both long diagonals must hold 1–9 too' : 'Rows, columns and boxes';
         el.diffBtns.forEach((b) => {
             const on = b.dataset.difficulty === d;
             b.setAttribute('aria-checked', String(on));
@@ -1547,8 +1608,8 @@
             b.tabIndex = on ? 0 : -1;
         });
         el.diffDesc.textContent = E.DIFFICULTIES[d].blurb;
-        const s = stats[d];
-        el.prevDiff.textContent = label(d);
+        const s = statsFor(d, vr);
+        el.prevDiff.textContent = (isDiag(vr) ? 'Diagonal · ' : '') + label(d);
         el.prevPlayed.textContent = String(s.played);
         el.prevWin.textContent = s.played ? Math.round((s.won / s.played) * 100) + '%' : '—';
         el.prevBest.textContent = s.bestMs ? fmt(s.bestMs) : '—';
@@ -1559,7 +1620,15 @@
         state.difficulty = d;
         saveSettings();
         updateHome();
-        prefetch(d);
+        prefetch(d, state.variant);
+    }
+
+    function setVariant(v) {
+        if (!VARIANT_NAMES.includes(v)) return;
+        state.variant = v;
+        saveSettings();
+        updateHome();
+        prefetch(state.difficulty, v);
     }
 
     // ── Keyboard ──
@@ -1624,10 +1693,11 @@
             dailyBtn: 'daily-btn', dailyTitle: 'daily-title', dailySub: 'daily-sub',
             hintNote: 'hint-note', hintTitle: 'hint-note-title', hintText: 'hint-note-text',
             diffDesc: 'difficulty-description', startBtn: 'start-btn', startLabel: 'start-btn-label',
-            prevDiff: 'stats-preview-diff', prevPlayed: 'prev-played', prevWin: 'prev-winpct', prevBest: 'prev-best'
+            variantDesc: 'variant-description', prevDiff: 'stats-preview-diff', prevPlayed: 'prev-played', prevWin: 'prev-winpct', prevBest: 'prev-best'
         };
         Object.keys(ids).forEach((k) => { el[k] = $(ids[k]); });
         el.diffBtns = Array.from(document.querySelectorAll('.difficulty-btn'));
+        el.variantBtns = Array.from(document.querySelectorAll('.variant-btn'));
 
         applyTheme(loadTheme());
         stats = loadStats();
@@ -1654,12 +1724,23 @@
         });
         $('home-help-btn').addEventListener('click', openHelp);
         $('open-stats-btn').addEventListener('click', openStats);
-        el.startBtn.addEventListener('click', () => startNewGame(state.difficulty));
+        el.startBtn.addEventListener('click', () => startNewGame(state.difficulty, state.variant));
         el.continueBtn.addEventListener('click', () => {
             const g = state.games.classic;
             if (g && g.status === 'playing') { setActive(g); showGame({ paused: false }); }
         });
         el.dailyBtn.addEventListener('click', openDaily);
+        el.variantBtns.forEach((b) => {
+            b.addEventListener('click', () => setVariant(b.dataset.variant));
+            b.addEventListener('keydown', (e) => {
+                const dir = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0;
+                if (!dir) return;
+                e.preventDefault();
+                const next = VARIANT_NAMES[(VARIANT_NAMES.indexOf(state.variant) + dir + VARIANT_NAMES.length) % VARIANT_NAMES.length];
+                setVariant(next);
+                el.variantBtns.find((x) => x.dataset.variant === next).focus();
+            });
+        });
         el.diffBtns.forEach((b) => {
             b.addEventListener('click', () => setDifficulty(b.dataset.difficulty));
             b.addEventListener('keydown', (e) => {
@@ -1699,7 +1780,7 @@
             const g = state.game;
             if (g && g.status === 'lost') retryGame(g);
             else if (g && g.mode === 'daily') { const r = dailyData.results[g.date]; if (r) shareText(dailyShareText(E.daily(g.date), r)); }
-            else startNewGame(g ? g.difficulty : state.difficulty);
+            else startNewGame(g ? g.difficulty : state.difficulty, g ? g.variant : state.variant);
         });
         $('solved-home-btn').addEventListener('click', goHome);
 
@@ -1746,7 +1827,7 @@
         if (incomingChallenge) { store.set(KEYS.helpSeen, '1'); openChallenge(incomingChallenge); }
         else if (resume && settings.screen === 'game') showGame({ paused: true });
         else if (store.get(KEYS.helpSeen) !== '1') openHelp();
-        prefetch(state.difficulty);
+        prefetch(state.difficulty, state.variant);
         setupPwa();
     }
 

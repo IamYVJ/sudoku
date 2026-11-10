@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (f) => readFileSync(path.join(root, f), 'utf8');
@@ -181,11 +182,11 @@ test('challenge codes round-trip and reject junk', () => {
     const code = E.encodeChallenge('hard', FIX_PUZZLE);
     assert.match(code, /^h[0-9a-zA-Z]+$/);
     assert.ok(code.length <= 48, `short enough for a link (${code.length})`);
-    assert.deepEqual(E.decodeChallenge(code), { difficulty: 'hard', puzzle: FIX_PUZZLE });
+    assert.deepEqual(E.decodeChallenge(code), { difficulty: 'hard', puzzle: FIX_PUZZLE, variant: 'classic' });
     for (let seed = 1; seed <= 20; seed++) {
         const d = ['easy', 'medium', 'hard', 'expert'][seed % 4];
         const r = E.generate(d, { seed, budgetMs: 2000 });
-        assert.deepEqual(E.decodeChallenge(E.encodeChallenge(d, r.puzzle)), { difficulty: d, puzzle: r.puzzle });
+        assert.deepEqual(E.decodeChallenge(E.encodeChallenge(d, r.puzzle)), { difficulty: d, puzzle: r.puzzle, variant: 'classic' });
     }
     const zeros = '0'.repeat(80) + '5';
     assert.equal(E.decodeChallenge(E.encodeChallenge('easy', zeros)).puzzle, zeros);
@@ -214,4 +215,87 @@ test('README guard', () => {
     const readme = read('README.md');
     assert.ok(!/run locally|deploy|http\.server|npx serve|live-server/i.test(readme));
     assert.ok(readme.includes('**Play it live: https://iamyvj.github.io/sudoku/**'));
+});
+
+test('classic generation output for a fixed seed is unchanged by the variant refactor', () => {
+    const expected = { easy: '0f4e49797cf0c1da', medium: '97e0ecccc02a26e3', hard: '83adf48a43ad53ae', expert: '35fdfeb996871d4a' };
+    for (const d of Object.keys(expected)) {
+        const r = E.generate(d, { seed: 12345, maxAttempts: 30 });
+        assert.equal(createHash('sha1').update(r.puzzle).digest('hex').slice(0, 16), expected[d], d);
+    }
+});
+
+test('diagonal variant tables', () => {
+    const V = E.variant('diagonal');
+    assert.equal(V.UNITS.length, 29);
+    assert.deepEqual(V.UNITS[27], [0, 10, 20, 30, 40, 50, 60, 70, 80]);
+    assert.deepEqual(V.UNITS[28], [8, 16, 24, 32, 40, 48, 56, 64, 72]);
+    assert.equal(V.PEERS[0].length, 8 + 8 + 4 + 6); // row + col + rest of box + rest of diagonal
+    assert.equal(V.PEERS[40].length, 32); // centre: row, col, box and both diagonals
+    assert.equal(V.PEERS[1].length, 20); // off-diagonal cell is unchanged
+    assert.equal(E.variant('classic').UNITS.length, 27);
+    assert.equal(E.variant('bogus'), E.variant('classic'));
+    assert.equal(E.UNITS, E.variant('classic').UNITS);
+});
+
+test('diagonal generation: valid on rows, columns, boxes and both diagonals, unique, graded', () => {
+    const lv = { easy: 1, medium: 1, hard: 2 };
+    for (const d of ['easy', 'medium', 'hard', 'expert']) {
+        const r = E.generate(d, { seed: 77, variant: 'diagonal', maxAttempts: 60 });
+        assert.equal(r.variant, 'diagonal');
+        assert.ok(E.isValidSolution(r.solution, 'diagonal'), d + ' solution');
+        for (const u of E.variant('diagonal').UNITS) {
+            assert.equal(new Set(u.map((i) => r.solution[i])).size, 9, d + ' unit');
+        }
+        for (let i = 0; i < 81; i++) if (r.puzzle[i] !== '0') assert.equal(r.puzzle[i], r.solution[i]);
+        assert.equal(E.countSolutions(r.puzzle, 2, 'diagonal'), 1, d + ' unique');
+        assert.equal(E.solve(r.puzzle, null, 'diagonal') && E.stringify(E.solve(r.puzzle, null, 'diagonal')), r.solution);
+        if (lv[d]) assert.ok(E.grade(r.puzzle, 'diagonal').level <= lv[d], d + ' grade');
+        assert.ok(E.grade(r.puzzle, 'diagonal').solved || d === 'expert', d + ' human-solvable');
+    }
+    // Same seed -> same puzzle.
+    assert.equal(E.generate('medium', { seed: 5, variant: 'diagonal' }).puzzle, E.generate('medium', { seed: 5, variant: 'diagonal' }).puzzle);
+});
+
+test('diagonal rule is enforced by solver and validator', () => {
+    const r = E.generate('easy', { seed: 3, variant: 'diagonal' });
+    // A classic-valid grid that repeats a digit on a diagonal is rejected as a diagonal solution.
+    assert.ok(E.isValidSolution(FIX_PUZZLE.replace(/0/g, '1')) === false);
+    const g = E.parse(r.solution);
+    assert.ok(E.isValidSolution(g, 'classic') && E.isValidSolution(g, 'diagonal'));
+    // Clashing diagonal givens -> no solutions.
+    const bad = new Uint8Array(81); bad[0] = 5; bad[80] = 5;
+    assert.equal(E.countSolutions(bad, 2, 'diagonal'), 0);
+    assert.ok(E.countSolutions(bad, 1, 'classic') >= 1);
+    assert.equal(E.grade(bad, 'diagonal').solved, false);
+    // candidates() and findStep honour the diagonal peers.
+    const v = new Uint8Array(81); v[80] = 7;
+    assert.equal(E.candidates(v, 0, 'diagonal') & 64, 0);
+    assert.notEqual(E.candidates(v, 0, 'classic') & 64, 0);
+});
+
+test('findStep on diagonal puzzles is correct', () => {
+    for (const d of ['medium', 'hard']) {
+        const r = E.generate(d, { seed: 9, variant: 'diagonal' });
+        const grid = E.parse(r.puzzle);
+        for (let n = 0; n < 200; n++) {
+            const s = E.findStep(grid, undefined, 'diagonal');
+            if (!s) break;
+            assert.equal(String(r.solution[s.cell]), String(s.digit));
+            grid[s.cell] = s.digit;
+        }
+        assert.equal(E.stringify(grid), r.solution, d);
+    }
+});
+
+test('challenge codes carry the variant and old codes still decode', () => {
+    const r = E.generate('medium', { seed: 21, variant: 'diagonal' });
+    const code = E.encodeChallenge('medium', r.puzzle, 'diagonal');
+    assert.match(code, /^dm[0-9a-zA-Z]+$/);
+    assert.deepEqual(E.decodeChallenge(code), { difficulty: 'medium', puzzle: r.puzzle, variant: 'diagonal' });
+    const classic = E.encodeChallenge('medium', r.puzzle);
+    assert.match(classic, /^m[0-9a-zA-Z]+$/);
+    assert.equal(E.decodeChallenge(classic).variant, 'classic');
+    assert.equal(E.decodeChallenge(E.encodeChallenge('hard', FIX_PUZZLE, 'classic')).variant, 'classic');
+    for (const bad of ['d', 'dq123', 'dd' + 'm1', 'x']) assert.equal(E.decodeChallenge(bad), null, bad);
 });
