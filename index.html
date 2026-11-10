@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Sudoku — Classic Logic Puzzle</title>
+    <meta name="description" content="A clean, modern Sudoku. Four difficulties, unique-solution puzzles generated in your browser, notes, hints, dark mode, and local stats.">
+    <meta name="theme-color" content="#0a0a0b">
+    <meta name="color-scheme" content="dark light">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Sudoku">
+    <meta property="og:title" content="Sudoku — Classic Logic Puzzle">
+    <meta property="og:description" content="A clean, modern Sudoku. Four difficulties, unique-solution puzzles generated in your browser, notes, hints, dark mode, and local stats.">
+    <meta property="og:url" content="https://iamyvj.github.io/sudoku/">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Sudoku — Classic Logic Puzzle">
+    <meta name="twitter:description" content="A clean, modern Sudoku. Four difficulties, unique-solution puzzles generated in your browser, notes, hints, dark mode, and local stats.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0a0b'/%3E%3Cg fill='none' stroke='%23f0c75e' stroke-width='2.5'%3E%3Crect x='12' y='12' width='40' height='40' rx='3'/%3E%3Cpath d='M25.3 12v40M38.7 12v40M12 25.3h40M12 38.7h40'/%3E%3C/g%3E%3Crect x='28' y='28' width='8' height='8' rx='1.5' fill='%23f0c75e'/%3E%3C/svg%3E">
+    <script>
+    (function(){var t='dark';try{var s=localStorage.getItem('theme');if(s==='light'||s==='dark')t=s;}catch(e){}
+    document.documentElement.setAttribute('data-theme',t);
+    var m=document.querySelector('meta[name="theme-color"]');if(m)m.content=t==='light'?'#f6f5f2':'#0a0a0b';})();
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app" class="app-container">
+
+    <!-- ═══════════ HOME ═══════════ -->
+    <section id="home-screen" class="screen active" aria-labelledby="home-title">
+        <button class="header-btn home-help-toggle" id="home-help-btn" type="button" aria-label="How to play" aria-haspopup="dialog">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+                <path d="M9.6 9.4a2.5 2.5 0 0 1 4.9.6c0 1.7-2.5 2-2.5 3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="12" cy="16.6" r="1" fill="currentColor"/>
+            </svg>
+        </button>
+        <button class="header-btn home-theme-toggle" id="home-theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 3C7.03 3 3 7.03 3 12C3 16.97 7.03 21 12 21C13.28 21 14.5 20.72 15.61 20.21C14.5 18.95 13.84 17.27 13.84 15.42C13.84 11.41 17.09 8.16 21.1 8.16C21.53 8.16 21.95 8.2 22.36 8.27C21.2 5.18 17.91 3 12 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            </svg>
+        </button>
+        <main class="home-content">
+            <div class="logo-container">
+                <svg class="logo-mark" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                    <rect x="10" y="10" width="44" height="44" rx="3"/>
+                    <path d="M24.67 10v44M39.33 10v44M10 24.67h44M10 39.33h44"/>
+                    <rect x="27.5" y="27.5" width="9" height="9" fill="currentColor" stroke="none"/>
+                </svg>
+                <h1 class="logo-title" id="home-title">Su<span class="logo-accent">doku</span></h1>
+                <p class="logo-subtitle">Nine rows, nine columns, one solution. Fresh puzzles, made in your browser.</p>
+            </div>
+
+            <button id="continue-btn" class="daily-btn" type="button" hidden>
+                <svg class="daily-btn-cal" width="26" height="26" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
+                    <rect x="8" y="8" width="48" height="48" rx="4"/>
+                    <path d="M24 8v48M40 8v48M8 24h48M8 40h48"/>
+                </svg>
+                <span class="daily-btn-text">
+                    <span class="daily-btn-title">Continue</span>
+                    <span class="daily-btn-sub" id="continue-sub">Medium</span>
+                </span>
+                <svg class="daily-btn-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+            <div class="home-divider" id="home-divider" hidden><span>or start a new puzzle</span></div>
+
+            <div class="settings-card">
+                <div class="setting-group">
+                    <div class="setting-label"><span class="label-text" id="difficulty-label">Difficulty</span></div>
+                    <div class="button-group difficulty-group" role="radiogroup" aria-labelledby="difficulty-label">
+                        <button class="difficulty-btn" type="button" role="radio" aria-checked="false" data-difficulty="easy">
+                            <svg class="diff-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="15" width="4" height="6" rx="1.2" fill="currentColor"/><rect class="bar-off" x="7.33" y="11" width="4" height="10" rx="1.2" fill="currentColor"/><rect class="bar-off" x="12.67" y="7" width="4" height="14" rx="1.2" fill="currentColor"/><rect class="bar-off" x="18" y="3" width="4" height="18" rx="1.2" fill="currentColor"/></svg>
+                            <span class="diff-text">Easy</span>
+                        </button>
+                        <button class="difficulty-btn" type="button" role="radio" aria-checked="true" data-difficulty="medium">
+                            <svg class="diff-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="15" width="4" height="6" rx="1.2" fill="currentColor"/><rect x="7.33" y="11" width="4" height="10" rx="1.2" fill="currentColor"/><rect class="bar-off" x="12.67" y="7" width="4" height="14" rx="1.2" fill="currentColor"/><rect class="bar-off" x="18" y="3" width="4" height="18" rx="1.2" fill="currentColor"/></svg>
+                            <span class="diff-text">Medium</span>
+                        </button>
+                        <button class="difficulty-btn" type="button" role="radio" aria-checked="false" data-difficulty="hard">
+                            <svg class="diff-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="15" width="4" height="6" rx="1.2" fill="currentColor"/><rect x="7.33" y="11" width="4" height="10" rx="1.2" fill="currentColor"/><rect x="12.67" y="7" width="4" height="14" rx="1.2" fill="currentColor"/><rect class="bar-off" x="18" y="3" width="4" height="18" rx="1.2" fill="currentColor"/></svg>
+                            <span class="diff-text">Hard</span>
+                        </button>
+                        <button class="difficulty-btn" type="button" role="radio" aria-checked="false" data-difficulty="expert">
+                            <svg class="diff-icon" width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="2" y="15" width="4" height="6" rx="1.2" fill="currentColor"/><rect x="7.33" y="11" width="4" height="10" rx="1.2" fill="currentColor"/><rect x="12.67" y="7" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="18" y="3" width="4" height="18" rx="1.2" fill="currentColor"/></svg>
+                            <span class="diff-text">Expert</span>
+                        </button>
+                    </div>
+                    <p class="difficulty-desc" id="difficulty-description"></p>
+                </div>
+                <button id="start-btn" class="start-btn" type="button">
+                    <span id="start-btn-label">New Game</span>
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path d="M7.5 15L12.5 10L7.5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
+
+            <section class="stats-preview" id="stats-preview" aria-labelledby="stats-preview-title">
+                <div class="stats-preview-head">
+                    <h3 id="stats-preview-title">Your Stats · <span id="stats-preview-diff">Medium</span></h3>
+                    <button class="text-btn" id="open-stats-btn" type="button" aria-haspopup="dialog">All stats</button>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-item-preview"><div class="stat-value-preview" id="prev-played">0</div><div class="stat-label-preview">Played</div></div>
+                    <div class="stat-item-preview"><div class="stat-value-preview" id="prev-winpct">—</div><div class="stat-label-preview">Win %</div></div>
+                    <div class="stat-item-preview"><div class="stat-value-preview" id="prev-best">—</div><div class="stat-label-preview">Best</div></div>
+                </div>
+            </section>
+
+            <footer class="home-footer">No accounts · Progress stays in your browser</footer>
+        </main>
+    </section>
+
+    <!-- ═══════════ GAME ═══════════ -->
+    <section id="game-screen" class="screen" aria-label="Game">
+        <header class="game-header">
+            <button class="header-btn" id="back-btn" type="button" aria-label="Back to home">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+            <div class="game-info">
+                <h2 class="game-title">Su<span class="game-accent">doku</span></h2>
+                <div class="game-meta">
+                    <span id="game-difficulty">Medium</span><span aria-hidden="true"> · </span><span id="timer" class="timer" role="timer" aria-label="Elapsed time">0:00</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="header-btn" id="pause-btn" type="button" aria-label="Pause" aria-pressed="false">
+                    <svg class="icon-pause" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6v12M15 6v12"/></svg>
+                    <svg class="icon-play" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="M8 5.5v13l10.5-6.5L8 5.5Z"/></svg>
+                </button>
+                <button class="header-btn" id="theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="true">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M12 3C7.03 3 3 7.03 3 12C3 16.97 7.03 21 12 21C13.28 21 14.5 20.72 15.61 20.21C14.5 18.95 13.84 17.27 13.84 15.42C13.84 11.41 17.09 8.16 21.1 8.16C21.53 8.16 21.95 8.2 22.36 8.27C21.2 5.18 17.91 3 12 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <main class="game-main" id="game-main">
+            <div id="message-container" class="message-container" role="status" aria-live="polite" aria-atomic="true"></div>
+            <div id="sr-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+            <div class="board-wrap" id="board-wrap">
+                <div id="board" class="board" role="grid" aria-label="Sudoku board" aria-rowcount="9" aria-colcount="9" aria-describedby="board-help"></div>
+                <p id="board-help" class="sr-only">Arrow keys move. 1 to 9 enters a digit, Shift plus a digit toggles a note. Backspace erases. N toggles notes mode, Z undoes, H gives a hint, P pauses.</p>
+                <div id="pause-overlay" class="pause-overlay" hidden>
+                    <p class="pause-title">Paused</p>
+                    <p class="pause-sub" id="pause-sub">Medium · 0:00</p>
+                    <button id="resume-btn" class="start-btn" type="button">Resume</button>
+                </div>
+            </div>
+
+            <div class="controls" id="controls">
+                <div class="tools" role="toolbar" aria-label="Tools">
+                    <button class="tool-btn" id="undo-btn" type="button">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+                        <span class="tool-label">Undo</span>
+                    </button>
+                    <button class="tool-btn" id="erase-btn" type="button">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 21-4.3-4.3a1 1 0 0 1 0-1.4l10-10a1 1 0 0 1 1.4 0l5.6 5.6a1 1 0 0 1 0 1.4L11 21"/><path d="M7 21h14M9 11l6 6"/></svg>
+                        <span class="tool-label">Erase</span>
+                    </button>
+                    <button class="tool-btn" id="notes-btn" type="button" aria-pressed="false">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></svg>
+                        <span class="tool-label">Notes</span>
+                        <span class="tool-badge" id="notes-state" aria-hidden="true">Off</span>
+                    </button>
+                    <button class="tool-btn" id="hint-btn" type="button">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.45 1 1.15 1.1 1.95l.05.75h5l.05-.75c.1-.8.5-1.5 1.1-1.95A6 6 0 0 0 12 3Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        <span class="tool-label">Hint</span>
+                        <span class="tool-badge" id="hint-count" aria-hidden="true" hidden>0</span>
+                    </button>
+                </div>
+                <div class="numpad" id="numpad" role="group" aria-label="Numbers"></div>
+            </div>
+
+            <div class="solved-actions" id="solved-actions" hidden>
+                <button class="result-btn primary" id="solved-new-btn" type="button">New Game</button>
+                <button class="result-btn secondary" id="solved-home-btn" type="button">Home</button>
+            </div>
+        </main>
+    </section>
+</div>
+
+<!-- Modals live outside #app so the app can be made inert while one is open -->
+<div id="help-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="help-title" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="help-title">How to Play</h2>
+            <button class="modal-close" data-close type="button" aria-label="Close">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p class="help-lead">Fill the grid so every row, column and 3×3 box contains the digits 1 to 9 exactly once.</p>
+            <ul class="help-rules">
+                <li>Tap a cell, then a number to place it.</li>
+                <li>Notes mode pencils in small candidates. Placing a digit clears it from the notes in the same row, column and box.</li>
+                <li>Clashing digits turn red.</li>
+                <li>Hint fixes a mistake first, otherwise fills the most constrained cell.</li>
+                <li>Every puzzle has exactly one solution. Easy to Hard never need guessing.</li>
+            </ul>
+            <dl class="help-keys">
+                <dt><kbd>1</kbd>–<kbd>9</kbd></dt><dd>Enter a digit</dd>
+                <dt><kbd>Shift</kbd> + <kbd>1</kbd>–<kbd>9</kbd></dt><dd>Toggle a note</dd>
+                <dt><kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd></dt><dd>Move</dd>
+                <dt><kbd>⌫</kbd> <kbd>Del</kbd> <kbd>0</kbd></dt><dd>Erase</dd>
+                <dt><kbd>N</kbd></dt><dd>Notes mode</dd>
+                <dt><kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Z</kbd></dt><dd>Undo</dd>
+                <dt><kbd>H</kbd></dt><dd>Hint</dd>
+                <dt><kbd>P</kbd></dt><dd>Pause</dd>
+                <dt><kbd>?</kbd> / <kbd>Esc</kbd></dt><dd>Help / close</dd>
+            </dl>
+            <div class="help-modes">
+                <p><strong>Easy.</strong> Plenty of clues; every step is a single.</p>
+                <p><strong>Medium.</strong> Fewer clues, still singles only.</p>
+                <p><strong>Hard.</strong> Needs pointing pairs, box/line reduction, or naked and hidden pairs.</p>
+                <p><strong>Expert.</strong> Near-minimal grids that may need X-Wings, chains and similar techniques.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="stats-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="stats-title" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="stats-title">Statistics</h2>
+            <button class="modal-close" data-close type="button" aria-label="Close">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div id="stats-body"></div>
+            <p class="stats-reset"><button class="text-btn danger" id="reset-stats-btn" type="button">Reset statistics</button></p>
+        </div>
+    </div>
+</div>
+
+<div id="win-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="win-title" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="win-title">Solved</h2>
+            <button class="modal-close" data-close type="button" aria-label="Close">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="result-content">
+                <svg class="result-mark" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                    <rect x="10" y="10" width="44" height="44" rx="3"/>
+                    <path d="M24.67 10v44M39.33 10v44M10 24.67h44M10 39.33h44"/>
+                    <rect x="27.5" y="27.5" width="9" height="9" fill="currentColor" stroke="none"/>
+                </svg>
+                <h3 class="result-title" id="win-title-big">Beautifully done.</h3>
+                <p class="result-sub" id="win-sub">Medium · no hints</p>
+                <p><span class="best-badge" id="win-best-badge" hidden>New best</span></p>
+                <div class="result-stats">
+                    <div class="stat-item"><div class="stat-value" id="win-time">0:00</div><div class="stat-label">Time</div></div>
+                    <div class="stat-item"><div class="stat-value" id="win-best">—</div><div class="stat-label">Best</div></div>
+                    <div class="stat-item"><div class="stat-value" id="win-avg">—</div><div class="stat-label">Average</div></div>
+                    <div class="stat-item"><div class="stat-value" id="win-hints">0</div><div class="stat-label">Hints</div></div>
+                </div>
+                <div class="result-actions">
+                    <button class="result-btn primary" id="win-new-btn" type="button">New Medium Game</button>
+                    <button class="result-btn secondary" id="win-home-btn" type="button">Home</button>
+                    <button class="result-btn secondary" id="win-stats-btn" type="button">All stats</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="confirm-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="confirm-title">Are you sure?</h2>
+            <button class="modal-close" data-close type="button" aria-label="Close">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p class="help-lead" id="confirm-text"></p>
+            <div class="result-actions">
+                <button class="result-btn secondary" id="confirm-cancel" type="button">Cancel</button>
+                <button class="result-btn primary-inline" id="confirm-ok" type="button">OK</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<noscript><p class="noscript">Sudoku needs JavaScript.</p></noscript>
+<script src="sudoku.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

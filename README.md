@@ -1,2 +1,81 @@
-# sudoku
-Sudoku Game
+# Sudoku
+
+A clean, modern Sudoku: pick a difficulty and solve a fresh puzzle generated right in your
+browser — with pencil-mark notes, hints, undo, dark mode, and local stats.
+
+**Play it live: https://iamyvj.github.io/sudoku/**
+
+## Features
+
+- **Four difficulties, graded by technique** — not just by clue count.
+  - **Easy** — about 40 clues; every step is a single.
+  - **Medium** — about 32 clues; still singles only, but you'll have to hunt for them.
+  - **Hard** — needs pointing pairs, box/line reduction, or naked/hidden pairs.
+  - **Expert** — near-minimal grids that go beyond pairs (think X-Wings and chains).
+- **Exactly one solution, every time** — each puzzle is checked for uniqueness before you see it.
+- **Pencil-mark notes** — toggle Notes (or hold Shift) to jot candidates; placing a digit
+  clears it from the notes in its row, column, and box.
+- **Gentle feedback** — clashing digits turn red, and the selected cell's row, column, box,
+  and matching digits are highlighted. The game never peeks at the answer for you.
+- **Hints, undo, erase** — a hint fixes a mistake first, otherwise fills the most
+  constrained cell. Best times only count hint-free solves.
+- **Timer with pause** — pausing hides the board; the clock stops when you switch tabs.
+- **Picks up where you left off** — your game is saved as you play.
+- **Local stats per difficulty** — played, win rate, best and average time.
+- **Dark / light theme**, remembered across visits.
+- **Built for phones and keyboards** — big tap targets, a layout that fits any screen, and
+  full keyboard play.
+
+### Keyboard
+
+| Key | Action |
+|---|---|
+| `1`–`9` | Place a digit (or a note in Notes mode) |
+| `Shift` + `1`–`9` | Toggle a note |
+| Arrow keys | Move |
+| `Backspace` / `Delete` / `0` | Erase |
+| `N` | Notes mode |
+| `Z` / `Ctrl+Z` | Undo |
+| `H` | Hint |
+| `P` | Pause |
+
+## How it works
+
+A pure static site — HTML, CSS, and vanilla JavaScript, with no framework and no runtime
+dependencies.
+
+- **Puzzles are made on your device.** `sudoku.js` fills a random solved grid by
+  backtracking, then removes clues one at a time, keeping each removal only if the puzzle
+  still has exactly one solution.
+- **Difficulty comes from a human-style solver.** A grader replays the puzzle using the
+  techniques people use — singles, then pointing pairs, box/line reduction, and naked/hidden
+  pairs — and the hardest technique it needs decides the level. Easy and Medium are also
+  dug in symmetric pairs, for the classic look.
+- **Generation stays off the UI thread.** `generator.worker.js` runs the engine in a Web
+  Worker, and the next puzzle is prepared in the background, so "New Game" is usually instant.
+- **One engine, shared everywhere.** The page, the worker, and the tests all load the same
+  `sudoku.js`, so they can never disagree about what counts as a valid puzzle.
+
+## Project structure
+
+```
+index.html             Markup + screens (home, game, modals)
+style.css              Theme tokens and all styling
+script.js              Game state, input, rendering, timer, stats
+sudoku.js              Engine: generator, uniqueness solver, difficulty grader
+generator.worker.js    Runs the generator off the main thread
+tests/sudoku.test.mjs  Uniqueness and difficulty checks for the generator
+```
+
+## Tests
+
+```sh
+node --test
+```
+
+Generates puzzles at every difficulty and checks each one against an independent solver:
+valid solution, exactly one solution, clue count, and difficulty grade.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
