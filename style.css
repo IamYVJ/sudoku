@@ -615,11 +615,14 @@ button { font: inherit; color: inherit; }
 .game-meta {
     font-family: var(--mono);
     font-size: 10.5px;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.04em;
     text-transform: uppercase;
     color: var(--text-secondary);
     margin-top: 4px;
 }
+
+.mistakes { font-weight: 700; color: var(--text-primary); }
+.mistakes.is-last { color: var(--error); }
 
 .timer {
     font-weight: 700;
@@ -757,6 +760,8 @@ button { font: inherit; color: inherit; }
 .cell.is-user  .cell-value { color: var(--digit-user); font-weight: 500; }
 .cell.is-hint  .cell-value { color: var(--digit-hint); font-weight: 600; }
 .cell.is-user.is-conflict .cell-value { color: var(--error); }
+.cell.is-wrong { background: var(--cell-conflict); }
+.cell.is-wrong .cell-value { color: var(--error); text-decoration: line-through; text-decoration-thickness: 2px; }
 
 .cell-notes {
     position: absolute;

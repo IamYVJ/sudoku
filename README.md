@@ -21,7 +21,9 @@ generated right in your browser — with pencil-mark notes, hints, undo, dark mo
   clears it from the notes in its row, column, and box. **Fill** pencils in every candidate
   at once when you'd rather start from full notes (one undo takes it back).
 - **Gentle feedback** — clashing digits turn red, and the selected cell's row, column, box,
-  and matching digits are highlighted. The game never peeks at the answer for you.
+  and matching digits are highlighted. By default the game never peeks at the answer for you.
+- **Strict mode** — an optional setting for a tougher game: any wrong digit is marked at
+  once, and three mistakes end the puzzle (you can retry the same grid).
 - **Hints that teach** — a hint fixes a mistake first; otherwise it fills the next logical
   step and says why ("Box 5 needs a 7, and this is the only cell where 7 fits"), naming any
   pairs or locked candidates it used. Best times only count hint-free solves.

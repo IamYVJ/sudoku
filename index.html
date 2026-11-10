@@ -149,7 +149,7 @@
             <div class="game-info">
                 <h2 class="game-title">Su<span class="game-accent">doku</span></h2>
                 <div class="game-meta">
-                    <span id="game-difficulty">Medium</span><span aria-hidden="true"> · </span><span id="timer" class="timer" role="timer" aria-label="Elapsed time">0:00</span>
+                    <span id="game-difficulty">Medium</span><span id="game-mistakes-wrap" hidden><span aria-hidden="true"> · </span><span id="game-mistakes" class="mistakes">✕ 0/3</span></span><span aria-hidden="true"> · </span><span id="timer" class="timer" role="timer" aria-label="Elapsed time">0:00</span>
                 </div>
             </div>
             <div class="header-actions">
@@ -235,7 +235,7 @@
                 <li>Tap a cell, then a number to place it. Prefer the number first? Turn on Digit-first input in Settings.</li>
                 <li>Notes mode pencils in small candidates. Placing a digit clears it from the notes in the same row, column and box.</li>
                 <li>Fill pencils in every candidate for every empty cell at once (you can undo it).</li>
-                <li>Clashing digits turn red.</li>
+                <li>Clashing digits turn red. In Strict mode (Settings), any wrong digit turns red, and three mistakes end the game.</li>
                 <li>Hint fixes a mistake first. Otherwise it fills the next logical step and tells you why, such as a hidden single in a box.</li>
                 <li>Every puzzle has exactly one solution. Easy to Hard never need guessing.</li>
                 <li>After a win, Challenge a friend copies a link to the same puzzle with your time to beat.</li>
@@ -278,6 +278,13 @@
                     <span class="switch-text">
                         <span class="switch-title">Digit-first input</span>
                         <span class="switch-desc">Pick a number, then tap cells to fill it in. Tap the number again to let go.</span>
+                    </span>
+                    <span class="switch" aria-hidden="true"></span>
+                </button>
+                <button class="switch-row" type="button" role="switch" aria-checked="false" id="set-strict" data-pref="strict">
+                    <span class="switch-text">
+                        <span class="switch-title">Strict mode</span>
+                        <span class="switch-desc">Wrong digits are marked straight away, and three mistakes end the game. Starts with your next puzzle.</span>
                     </span>
                     <span class="switch" aria-hidden="true"></span>
                 </button>

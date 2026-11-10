@@ -34,6 +34,7 @@
     };
     const DIFFS = ['easy', 'medium', 'hard', 'expert'];
     const UNDO_CAP = 400;
+    const MAX_MISTAKES = 3;
 
     const store = {
         get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
@@ -47,6 +48,7 @@
     const label = (d) => E.DIFFICULTIES[d].label;
     const gameName = (g) => (g.mode === 'daily' ? 'Daily #' + g.number + ' · ' : '') + label(g.difficulty);
     const hintText = (n) => (n ? n + (n === 1 ? ' hint' : ' hints') : 'no hints');
+    const mistakeText = (n) => (n ? n + (n === 1 ? ' mistake' : ' mistakes') : 'no mistakes');
 
     // ── State ──
     const state = {
@@ -57,7 +59,7 @@
         selected: -1,
         notesMode: false,
         armed: 0,                       // digit picked in digit-first mode
-        prefs: { digitFirst: false },
+        prefs: { digitFirst: false, strict: false },
         conflicts: new Uint8Array(81),
         pauseReasons: new Set(),
         runningSince: null,
@@ -210,7 +212,7 @@
         Object.keys(raw.results).forEach((k) => {
             const r = raw.results[k];
             if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || !r || typeof r.ms !== 'number' || !(r.ms > 0)) return;
-            out.results[k] = { ms: r.ms, hints: Math.max(0, r.hints | 0), mistakes: Math.max(0, r.mistakes | 0) };
+            out.results[k] = { ms: r.ms, hints: Math.max(0, r.hints | 0), mistakes: Math.max(0, r.mistakes | 0), strict: !!r.strict };
         });
         return out;
     }
@@ -236,7 +238,7 @@
         const st = dailyStreaks();
         const lines = [
             'Sudoku Daily #' + info.number + ' · ' + label(info.difficulty),
-            '⏱️ ' + fmt(r.ms) + ' · ' + hintText(r.hints)
+            '⏱️ ' + fmt(r.ms) + ' · ' + hintText(r.hints) + (r.strict ? ' · strict, ' + mistakeText(r.mistakes) : '')
         ];
         if (st.current > 1) lines.push('🔥 ' + st.current + '-day streak');
         lines.push(siteUrl());
@@ -272,6 +274,9 @@
     function setPref(key, on) {
         state.prefs[key] = on;
         if (key === 'digitFirst' && !on) state.armed = 0;
+        if (key === 'strict' && state.game && state.game.status === 'playing' && !!state.game.strict !== on) {
+            toast('Strict mode ' + (on ? 'starts' : 'ends') + ' with your next puzzle', 2400);
+        }
         saveSettings();
         renderSettings();
         if (state.game) render();
@@ -283,6 +288,7 @@
         if (!g || g.status !== 'playing') return;
         store.set(g.mode === 'daily' ? KEYS.dailyGame : KEYS.game, {
             v: 1, mode: g.mode, date: g.date, number: g.number, challengeMs: g.challengeMs || 0,
+            strict: !!g.strict, mistakes: g.mistakes || 0,
             difficulty: g.difficulty, seed: g.seed, level: g.level,
             puzzle: E.stringify(g.puzzle), solution: E.stringify(g.solution), values: E.stringify(g.values),
             notes: Array.from(g.notes), hinted: Array.from(g.hinted), hintsUsed: g.hintsUsed,
@@ -325,6 +331,7 @@
             const game = {
                 mode, date: mode === 'daily' ? r.date : null, number: mode === 'daily' ? Number(r.number) || 0 : 0,
                 challengeMs: Math.max(0, Number(r.challengeMs) || 0),
+                strict: !!r.strict, mistakes: Math.min(MAX_MISTAKES - 1, Math.max(0, r.mistakes | 0)),
                 difficulty: r.difficulty, seed: r.seed >>> 0, level: Number(r.level) || 0,
                 puzzle, solution: E.parse(r.solution), values: E.parse(r.values),
                 notes: Uint16Array.from(r.notes), given, hinted: new Set(hinted),
@@ -542,6 +549,7 @@
         const mode = m.mode === 'daily' ? 'daily' : 'classic';
         const g = {
             mode, date: m.date || null, number: m.number || 0, challengeMs: m.challengeMs || 0,
+            strict: state.prefs.strict, mistakes: 0,
             difficulty: p.difficulty, seed: p.seed, level: p.level,
             puzzle, solution: E.parse(p.solution), values: puzzle.slice(),
             notes: new Uint16Array(81), given, hinted: new Set(),
@@ -625,7 +633,7 @@
         const ms = Math.round(g.elapsed);
         let res;
         if (g.mode === 'daily') {
-            res = { ms, hints: g.hintsUsed, mistakes: 0 };
+            res = { ms, hints: g.hintsUsed, mistakes: g.mistakes || 0, strict: !!g.strict };
             if (!dailyData.results[g.date]) { dailyData.results[g.date] = res; saveDaily(); }
             else res = dailyData.results[g.date];
             store.del(KEYS.dailyGame);
@@ -647,8 +655,55 @@
         }, delay);
     }
 
+    function onLost() {
+        const g = state.game;
+        stopClock();
+        g.status = 'lost';
+        store.del(g.mode === 'daily' ? KEYS.dailyGame : KEYS.game);
+        state.games[g.mode] = null;
+        g.undo = [];
+        state.armed = 0;
+        render();
+        announce('Third mistake. Game over.');
+        setTimeout(() => {
+            if (state.game !== g || state.screen !== 'game') return;
+            showLostModal(g);
+        }, prefersReducedMotion() ? 0 : 500);
+    }
+
+    // Starts the same grid again from scratch (after a strict-mode loss).
+    function retryGame(g) {
+        const ng = createGame({
+            difficulty: g.difficulty, seed: g.seed, level: g.level,
+            puzzle: E.stringify(g.puzzle), solution: E.stringify(g.solution)
+        }, { mode: g.mode, date: g.date, number: g.number, challengeMs: g.challengeMs });
+        if (ng.mode === 'classic') { stats[ng.difficulty].played++; saveStats(); }
+        saveGame();
+        showGame({ paused: false });
+    }
+
     let winPrimary = null;
     let winShare = null;
+
+    function showLostModal(g) {
+        let filled = 0;
+        for (let i = 0; i < 81; i++) if (g.values[i] && g.values[i] === g.solution[i]) filled++;
+        $('win-title').textContent = 'Game over';
+        $('win-title-big').textContent = 'Out of mistakes.';
+        fillStats($('win-stats'), [
+            ['Time', fmt(g.elapsed)],
+            ['Correct', filled + '/81'],
+            ['Hints', String(g.hintsUsed)],
+            ['Mistakes', g.mistakes + '/' + MAX_MISTAKES]
+        ]);
+        $('win-best-badge').hidden = true;
+        $('win-sub').textContent = gameName(g) + ' · strict';
+        $('win-next').hidden = true;
+        $('win-share-btn').hidden = true;
+        $('win-new-btn').textContent = 'Try again';
+        winPrimary = () => { closeModal('win-modal'); retryGame(g); };
+        openModal('win-modal');
+    }
 
     function fillStats(container, items) {
         container.textContent = '';
@@ -676,7 +731,8 @@
             ['Hints', String(g.hintsUsed)]
         ]);
         $('win-best-badge').hidden = !res.isBest;
-        $('win-sub').textContent = label(g.difficulty) + ' · ' + hintText(g.hintsUsed);
+        $('win-title').textContent = 'Solved';
+        $('win-sub').textContent = label(g.difficulty) + ' · ' + hintText(g.hintsUsed) + (g.strict ? ' · ' + mistakeText(g.mistakes) : '');
         const next = $('win-next');
         next.hidden = !g.challengeMs;
         if (g.challengeMs) {
@@ -702,7 +758,8 @@
             ['Max', String(st.max)]
         ]);
         $('win-best-badge').hidden = true;
-        $('win-sub').textContent = label(info.difficulty) + ' · ' + hintText(r.hints);
+        $('win-title').textContent = 'Solved';
+        $('win-sub').textContent = label(info.difficulty) + ' · ' + hintText(r.hints) + (r.strict ? ' · ' + mistakeText(r.mistakes) : '');
         const next = $('win-next');
         next.textContent = 'Next daily in ' + fmtCountdown(untilMidnight());
         next.hidden = false;
@@ -809,6 +866,7 @@
             cl.toggle('is-hint', isHint);
             cl.toggle('is-user', !!v && !isGiven && !isHint);
             cl.toggle('is-conflict', !!state.conflicts[i]);
+            cl.toggle('is-wrong', !!g.strict && !!v && !isGiven && !isHint && v !== g.solution[i]);
             cl.toggle('is-selected', i === sel);
             cl.toggle('is-peer', !!peerSet && peerSet[i] === 1 && i !== sel);
             cl.toggle('is-hint-unit', hintSet[i] === 1 && i !== sel);
@@ -878,7 +936,15 @@
         if (!g) return;
         const ms = currentElapsed();
         state.lastShownSecond = Math.floor(ms / 1000);
-        el.difficultyLabel.textContent = gameName(g) + (g.status === 'won' ? ' · Solved' : '');
+        // The header line is narrow on phones: no daily number, and no counter once the game is over.
+        const short = (g.mode === 'daily' ? 'Daily · ' : '') + label(g.difficulty);
+        el.difficultyLabel.textContent = short + (g.status === 'won' ? ' · Solved' : g.status === 'lost' ? ' · Game over' : '');
+        el.mistakesWrap.hidden = !g.strict || g.status !== 'playing';
+        if (g.strict) {
+            el.mistakes.textContent = '✕ ' + g.mistakes + '/' + MAX_MISTAKES;
+            el.mistakes.classList.toggle('is-last', g.mistakes >= MAX_MISTAKES - 1);
+            el.mistakes.setAttribute('aria-label', mistakeText(g.mistakes) + ' of ' + MAX_MISTAKES);
+        }
         el.timer.textContent = fmt(ms);
         if (!el.pauseOverlay.hidden) el.pauseSub.textContent = gameName(g) + ' · ' + fmt(ms);
     }
@@ -891,9 +957,11 @@
         renderControls();
         renderMeta();
         const won = g.status === 'won';
-        el.controls.hidden = won;
-        el.solvedActions.hidden = !won;
+        const over = won || g.status === 'lost';
+        el.controls.hidden = over;
+        el.solvedActions.hidden = !over;
         if (won) el.solvedNewBtn.textContent = g.mode === 'daily' ? 'Share result' : 'New Game';
+        else if (over) el.solvedNewBtn.textContent = 'Try again';
         if (!won) el.board.classList.remove('is-won');
     }
 
@@ -1001,6 +1069,12 @@
         let msg = 'Row ' + (E.ROW[i] + 1) + ', column ' + (E.COL[i] + 1) + ': ' + d;
         if (state.conflicts[i]) msg += ' — clashes with another ' + d;
         if (parts.length) msg += ' — ' + parts.join(', ');
+        if (g.strict && d !== g.solution[i]) {
+            g.mistakes++;
+            msg += ' — wrong, mistake ' + g.mistakes + ' of ' + MAX_MISTAKES;
+            if (g.mistakes >= MAX_MISTAKES) { computeConflicts(); onLost(); announce(msg + '. Game over.'); return; }
+            toast('Mistake ' + g.mistakes + ' of ' + MAX_MISTAKES);
+        }
         afterChange(i, { pop: true });
         if (done.length && !state.conflicts[i]) flashCells(done);
         announce(msg);
@@ -1371,6 +1445,7 @@
             pauseOverlay: 'pause-overlay', pauseSub: 'pause-sub', pauseBtn: 'pause-btn', resumeBtn: 'resume-btn',
             undoBtn: 'undo-btn', eraseBtn: 'erase-btn', notesBtn: 'notes-btn', hintBtn: 'hint-btn', fillBtn: 'fill-btn',
             notesState: 'notes-state', hintCount: 'hint-count', timer: 'timer', difficultyLabel: 'game-difficulty',
+            mistakes: 'game-mistakes', mistakesWrap: 'game-mistakes-wrap',
             continueBtn: 'continue-btn', continueSub: 'continue-sub', solvedNewBtn: 'solved-new-btn',
             dailyBtn: 'daily-btn', dailyTitle: 'daily-title', dailySub: 'daily-sub',
             hintNote: 'hint-note', hintTitle: 'hint-note-title', hintText: 'hint-note-text',
@@ -1445,7 +1520,8 @@
         el.hintBtn.addEventListener('click', hint);
         el.solvedNewBtn.addEventListener('click', () => {
             const g = state.game;
-            if (g && g.mode === 'daily') { const r = dailyData.results[g.date]; if (r) shareText(dailyShareText(E.daily(g.date), r)); }
+            if (g && g.status === 'lost') retryGame(g);
+            else if (g && g.mode === 'daily') { const r = dailyData.results[g.date]; if (r) shareText(dailyShareText(E.daily(g.date), r)); }
             else startNewGame(g ? g.difficulty : state.difficulty);
         });
         $('solved-home-btn').addEventListener('click', goHome);
