@@ -241,9 +241,16 @@ button { font: inherit; color: inherit; }
 }
 
 .noscript {
+    max-width: 52ch;
+    margin: 0 auto;
     text-align: center;
-    padding: 40px;
+    padding: 40px 24px;
     font-family: var(--mono);
+    line-height: 1.6;
+}
+
+.noscript p + p {
+    margin-top: 1em;
 }
 
 .app-container {

@@ -3,18 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>Sudoku — Classic Logic Puzzle</title>
-    <meta name="description" content="A clean, modern Sudoku. Four difficulties, unique-solution puzzles generated in your browser, notes, hints, dark mode, and local stats.">
+    <title>Sudoku — Free Daily Sudoku Puzzles, Online &amp; Offline</title>
+    <meta name="description" content="Play free Sudoku online: a new Daily puzzle, four difficulties, hints that explain the technique, and Diagonal Sudoku. No sign-up, works offline.">
+    <link rel="canonical" href="https://iamyvj.github.io/sudoku/">
     <meta name="theme-color" content="#0a0a0b">
     <meta name="color-scheme" content="dark light">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="Sudoku">
-    <meta property="og:title" content="Sudoku — Classic Logic Puzzle">
-    <meta property="og:description" content="A clean, modern Sudoku. Four difficulties, unique-solution puzzles generated in your browser, notes, hints, dark mode, and local stats.">
+    <meta property="og:title" content="Sudoku — Free Daily Puzzles, Online &amp; Offline">
+    <meta property="og:description" content="Free Sudoku with a new Daily puzzle, four difficulties, hints that teach the technique, and a Diagonal variant. No sign-up, and it works offline.">
     <meta property="og:url" content="https://iamyvj.github.io/sudoku/">
-    <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="Sudoku — Classic Logic Puzzle">
-    <meta name="twitter:description" content="A clean, modern Sudoku. Four difficulties, unique-solution puzzles generated in your browser, notes, hints, dark mode, and local stats.">
+    <meta property="og:locale" content="en_US">
+    <meta property="og:image" content="https://iamyvj.github.io/sudoku/og-image.png">
+    <meta property="og:image:type" content="image/png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Sudoku logo and a faint Sudoku grid on a dark background: free daily puzzles, works offline.">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://iamyvj.github.io/sudoku/og-image.png">
+    <meta name="twitter:image:alt" content="Sudoku logo and a faint Sudoku grid on a dark background: free daily puzzles, works offline.">
+    <meta name="twitter:title" content="Sudoku — Free Daily Puzzles, Online &amp; Offline">
+    <meta name="twitter:description" content="Free Sudoku with a new Daily puzzle, four difficulties, hints that teach the technique, and a Diagonal variant. No sign-up, and it works offline.">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230a0a0b'/%3E%3Cg fill='none' stroke='%23f0c75e' stroke-width='2.5'%3E%3Crect x='12' y='12' width='40' height='40' rx='3'/%3E%3Cpath d='M25.3 12v40M38.7 12v40M12 25.3h40M12 38.7h40'/%3E%3C/g%3E%3Crect x='28' y='28' width='8' height='8' rx='1.5' fill='%23f0c75e'/%3E%3C/svg%3E">
     <script>
     (function(){var t='dark';try{var s=localStorage.getItem('theme');if(s==='light'||s==='dark')t=s;}catch(e){}
@@ -32,6 +41,35 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Sudoku">
     <link rel="stylesheet" href="style.css">
+    <script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Sudoku",
+    "url": "https://iamyvj.github.io/sudoku/",
+    "description": "Play free Sudoku online: a new Daily puzzle, four difficulties, hints that explain the technique, and Diagonal Sudoku. No sign-up, works offline.",
+    "image": "https://iamyvj.github.io/sudoku/og-image.png",
+    "applicationCategory": "GameApplication",
+    "operatingSystem": "Any",
+    "browserRequirements": "Requires JavaScript",
+    "isAccessibleForFree": true,
+    "inLanguage": "en",
+    "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+    },
+    "featureList": [
+        "Daily puzzle with streaks and a past-puzzles archive",
+        "Four difficulties from easy to expert",
+        "Diagonal Sudoku variant",
+        "Hints that explain the technique",
+        "Notes, undo and redo",
+        "Works offline and installs as an app",
+        "Light and dark themes"
+    ]
+}
+    </script>
 </head>
 <body>
 <div id="app" class="app-container">
@@ -444,14 +482,19 @@
     </div>
 </div>
 
-<noscript><p class="noscript">Sudoku needs JavaScript.</p></noscript>
+<noscript>
+    <div class="noscript">
+        <p>Sudoku is a free logic puzzle on a 9&times;9 grid. Fill every row, column and 3&times;3 box with the digits 1 to 9, using each digit once, and every puzzle has exactly one solution. Choose from four difficulties, easy to expert, play a new Daily puzzle, or try Diagonal Sudoku.</p>
+        <p>This game runs in your browser and needs JavaScript to play. Please enable it, and the puzzles will load; once loaded it works offline too.</p>
+    </div>
+</noscript>
 <script src="sudoku.js"></script>
 <script src="script.js"></script>
 
 <!-- GoatCounter pageview beacon. Shared GoatCounter site across projects on purpose: counts
      are per-path, so each project separates itself via its own pathname. The service worker
      (sw.js) deliberately ignores this cross-origin request, so nothing caches it (a cached
-     beacon records nothing) and it simply fails offline. count.js files the view under location.pathname + location.search. -->
+     beacon records nothing) and it simply fails offline. count.js files the view under the canonical URL's path (/sudoku/). -->
 <script
     data-goatcounter="https://yvj.goatcounter.com/count"
     async
@@ -472,8 +515,9 @@
             if (!endpoint) return;
 
             // Per-path, NOT /counter/TOTAL.json (that sums every project on this shared
-            // GoatCounter site). There is no <link rel="canonical"> in this page, so count.js
-            // files the pageview under location.pathname + location.search; we query pathname
+            // GoatCounter site). This page has a <link rel="canonical"> to /sudoku/, so count.js
+            // files the pageview under the canonical path (/sudoku/) rather than location.pathname + location.search;
+            // that equals the pathname served here, so we query location.pathname
             // WITHOUT search so tracking params (?fbclid=…) still show the clean-path aggregate.
             // Screens swap via CSS classes and history.pushState keeps the same URL, so
             // location.pathname is stable.

@@ -2,6 +2,8 @@
   "name": "Sudoku",
   "short_name": "Sudoku",
   "description": "A clean, modern Sudoku. Unique-solution puzzles generated on your device, works offline.",
+  "lang": "en",
+  "categories": ["games", "puzzle"],
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
