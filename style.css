@@ -1056,7 +1056,8 @@ button { font: inherit; color: inherit; }
     font-weight: 700;
 }
 
-.result-btn.primary { grid-column: 1 / -1; }
+.result-btn.primary,
+.result-btn.wide { grid-column: 1 / -1; }
 .result-btn.secondary { background: var(--surface-2); }
 
 .stats-block + .stats-block { margin-top: 18px; }
@@ -1275,7 +1276,7 @@ kbd {
     .settings-card { padding: 20px 16px; }
     .game-main { padding: 12px 10px max(10px, env(safe-area-inset-bottom)); gap: 10px; }
     .result-actions { grid-template-columns: 1fr; }
-    .result-btn.primary { grid-column: 1; }
+    .result-btn.primary, .result-btn.wide { grid-column: 1; }
     .result-stats { gap: 8px; padding: 14px; }
     .result-stats .stat-value { font-size: 26px; }
 }

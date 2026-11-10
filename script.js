@@ -5,6 +5,23 @@
 
     const E = window.SudokuEngine;
 
+    // ── Challenge link (?c=<code>&t=<seconds>) ──
+    // Read and strip it right away, before boot and before the analytics beacon reads the URL,
+    // so shared links all count as the plain page.
+    const incomingChallenge = (function () {
+        try {
+            const q = new URLSearchParams(location.search);
+            const code = q.get('c');
+            if (!code) return null;
+            q.delete('c');
+            const t = parseInt(q.get('t'), 10);
+            q.delete('t');
+            const rest = q.toString();
+            history.replaceState(history.state, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+            return { code, ms: t > 0 && t < 360000 ? t * 1000 : 0 };
+        } catch (e) { return null; }
+    })();
+
     // ── Constants & storage ──
     const KEYS = {
         theme: 'theme',                 // shared with the sister sites; raw 'light' | 'dark'
@@ -245,7 +262,7 @@
         const g = state.game;
         if (!g || g.status !== 'playing') return;
         store.set(g.mode === 'daily' ? KEYS.dailyGame : KEYS.game, {
-            v: 1, mode: g.mode, date: g.date, number: g.number,
+            v: 1, mode: g.mode, date: g.date, number: g.number, challengeMs: g.challengeMs || 0,
             difficulty: g.difficulty, seed: g.seed, level: g.level,
             puzzle: E.stringify(g.puzzle), solution: E.stringify(g.solution), values: E.stringify(g.values),
             notes: Array.from(g.notes), hinted: Array.from(g.hinted), hintsUsed: g.hintsUsed,
@@ -287,6 +304,7 @@
             for (let i = 0; i < 81; i++) given[i] = puzzle[i] ? 1 : 0;
             const game = {
                 mode, date: mode === 'daily' ? r.date : null, number: mode === 'daily' ? Number(r.number) || 0 : 0,
+                challengeMs: Math.max(0, Number(r.challengeMs) || 0),
                 difficulty: r.difficulty, seed: r.seed >>> 0, level: Number(r.level) || 0,
                 puzzle, solution: E.parse(r.solution), values: E.parse(r.values),
                 notes: Uint16Array.from(r.notes), given, hinted: new Set(hinted),
@@ -441,17 +459,20 @@
     // ── Game lifecycle ──
     let starting = false;
 
+    // Resolves true when it is fine to replace the classic game in progress.
+    async function confirmReplaceClassic(title, okLabel) {
+        const g = state.games.classic;
+        if (!g || g.status !== 'playing' || !(gameElapsed(g) > 0 || g.undo.length || g.hintsUsed)) return true;
+        return confirmDialog({
+            title,
+            text: 'Your ' + label(g.difficulty) + ' puzzle in progress (' + fmt(gameElapsed(g)) + ') will be lost.',
+            okLabel, cancelLabel: 'Keep playing'
+        });
+    }
+
     async function startNewGame(diff) {
         if (starting) return;
-        const g = state.games.classic;
-        if (g && g.status === 'playing' && (gameElapsed(g) > 0 || g.undo.length || g.hintsUsed)) {
-            const ok = await confirmDialog({
-                title: 'New puzzle?',
-                text: 'Your ' + label(g.difficulty) + ' puzzle in progress (' + fmt(gameElapsed(g)) + ') will be lost.',
-                okLabel: 'New puzzle', cancelLabel: 'Keep playing'
-            });
-            if (!ok) return;
-        }
+        if (!(await confirmReplaceClassic('New puzzle?', 'New puzzle'))) return;
         starting = true;
         const btn = el.startBtn;
         const busyTimer = setTimeout(() => {
@@ -490,7 +511,7 @@
         cellKeys.fill('');
     }
 
-    // meta: { mode: 'classic' | 'daily', date, number }
+    // meta: { mode: 'classic' | 'daily', date, number, challengeMs }
     function createGame(p, meta) {
         const m = meta || {};
         const puzzle = E.parse(p.puzzle);
@@ -499,7 +520,7 @@
         for (let i = 0; i < 81; i++) { given[i] = puzzle[i] ? 1 : 0; if (first < 0 && !puzzle[i]) first = i; }
         const mode = m.mode === 'daily' ? 'daily' : 'classic';
         const g = {
-            mode, date: m.date || null, number: m.number || 0,
+            mode, date: m.date || null, number: m.number || 0, challengeMs: m.challengeMs || 0,
             difficulty: p.difficulty, seed: p.seed, level: p.level,
             puzzle, solution: E.parse(p.solution), values: puzzle.slice(),
             notes: new Uint16Array(81), given, hinted: new Set(),
@@ -510,6 +531,39 @@
         setActive(g);
         state.pauseReasons.delete('user');
         return g;
+    }
+
+    // ── Challenges ──
+    function challengeLink(g) {
+        const code = E.encodeChallenge(g.difficulty, E.stringify(g.puzzle));
+        return siteUrl() + '?c=' + code + '&t=' + Math.max(1, Math.round(g.elapsed / 1000));
+    }
+
+    function challengeText(g) {
+        const ms = Math.round(g.elapsed);
+        return 'I solved this ' + label(g.difficulty) + ' Sudoku in ' + fmt(ms) +
+            (g.hintsUsed ? ' (' + hintText(g.hintsUsed) + ')' : ' with no hints') + '. Can you beat it?\n' + challengeLink(g);
+    }
+
+    async function openChallenge(ch) {
+        const dec = E.decodeChallenge(ch.code);
+        let solution = null;
+        if (dec) {
+            let clues = 0;
+            for (let i = 0; i < 81; i++) if (dec.puzzle[i] !== '0') clues++;
+            if (clues >= 17 && E.countSolutions(dec.puzzle, 2) === 1) solution = E.solve(dec.puzzle);
+        }
+        if (!solution) { toast('That challenge link is broken', 2600); return; }
+        if (!(await confirmReplaceClassic('Play the challenge?', 'Play challenge'))) return;
+        const g = createGame({
+            difficulty: dec.difficulty, seed: 0, level: E.grade(dec.puzzle).level,
+            puzzle: dec.puzzle, solution: E.stringify(solution)
+        }, { mode: 'classic', challengeMs: ch.ms });
+        stats[g.difficulty].played++;
+        saveStats();
+        saveGame();
+        showGame({ paused: false });
+        toast(ch.ms ? 'Challenge · beat ' + fmt(ch.ms) : 'Challenge puzzle', 2600);
     }
 
     // ── Daily ──
@@ -573,6 +627,7 @@
     }
 
     let winPrimary = null;
+    let winShare = null;
 
     function fillStats(container, items) {
         container.textContent = '';
@@ -601,7 +656,16 @@
         ]);
         $('win-best-badge').hidden = !res.isBest;
         $('win-sub').textContent = label(g.difficulty) + ' · ' + hintText(g.hintsUsed);
-        $('win-next').hidden = true;
+        const next = $('win-next');
+        next.hidden = !g.challengeMs;
+        if (g.challengeMs) {
+            const diff = g.challengeMs - ms;
+            next.textContent = diff >= 0
+                ? 'Beat their ' + fmt(g.challengeMs) + ' by ' + fmt(diff)
+                : fmt(-diff) + ' behind their ' + fmt(g.challengeMs);
+        }
+        $('win-share-btn').hidden = false;
+        winShare = () => shareText(challengeText(g));
         $('win-new-btn').textContent = 'New ' + label(g.difficulty) + ' Game';
         winPrimary = () => { closeModal('win-modal'); startNewGame(g.difficulty); };
         openModal('win-modal');
@@ -622,6 +686,7 @@
         next.textContent = 'Next daily in ' + fmtCountdown(untilMidnight());
         next.hidden = false;
         $('win-new-btn').textContent = 'Share result';
+        $('win-share-btn').hidden = true;
         winPrimary = () => shareText(dailyShareText(info, r));
         openModal('win-modal');
     }
@@ -1314,6 +1379,7 @@
             m.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeModal(m.id); });
         });
         $('win-new-btn').addEventListener('click', () => { if (winPrimary) winPrimary(); });
+        $('win-share-btn').addEventListener('click', () => { if (winShare) winShare(); });
         $('win-home-btn').addEventListener('click', () => { closeModal('win-modal'); if (state.screen === 'game') goHome(); });
         $('win-stats-btn').addEventListener('click', () => { closeModal('win-modal'); openStats(); });
         $('confirm-ok').addEventListener('click', () => {
@@ -1347,7 +1413,8 @@
         window.addEventListener('popstate', () => { if (state.screen === 'game') showHome(); });
 
         updateHome();
-        if (resume && settings.screen === 'game') showGame({ paused: true });
+        if (incomingChallenge) { store.set(KEYS.helpSeen, '1'); openChallenge(incomingChallenge); }
+        else if (resume && settings.screen === 'game') showGame({ paused: true });
         else if (store.get(KEYS.helpSeen) !== '1') openHelp();
         prefetch(state.difficulty);
     }

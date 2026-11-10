@@ -517,12 +517,41 @@
         };
     }
 
+    // ── Challenge links ──
+    // A puzzle travels as its 81 digits read as one big number in base 62 (about 45
+    // characters), prefixed by a difficulty letter. The link carries the grid itself, so it
+    // keeps working even if the generator changes.
+    const B62 = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const DIFF_CODE = { easy: 'e', medium: 'm', hard: 'h', expert: 'x' };
+
+    function encodeChallenge(difficulty, puzzle) {
+        const letter = DIFF_CODE[difficulty];
+        if (!letter || !/^[0-9]{81}$/.test(puzzle)) throw new Error('Bad challenge');
+        const base = BigInt(62);
+        let n = BigInt(puzzle.replace(/^0+/, '') || '0');
+        let out = '';
+        do { out = B62[Number(n % base)] + out; n = n / base; } while (n > BigInt(0));
+        return letter + out;
+    }
+
+    // Returns { difficulty, puzzle } or null. Does not check that the puzzle is solvable.
+    function decodeChallenge(code) {
+        if (typeof code !== 'string' || !/^[emhx][0-9a-zA-Z]{1,50}$/.test(code)) return null;
+        const difficulty = Object.keys(DIFF_CODE).find((d) => DIFF_CODE[d] === code[0]);
+        const base = BigInt(62);
+        let n = BigInt(0);
+        for (let i = 1; i < code.length; i++) n = n * base + BigInt(B62.indexOf(code[i]));
+        const puzzle = n.toString().padStart(81, '0');
+        if (puzzle.length !== 81) return null;
+        return { difficulty, puzzle };
+    }
+
     const api = {
         ROW, COL, BOX, UNITS, CELL_UNITS, PEERS, POP, ALL,
         DIFFICULTIES,
         createRng, parse, stringify, candidates,
         countSolutions, solve, isValidSolution, grade, generate,
-        daily, findStep
+        daily, findStep, encodeChallenge, decodeChallenge
     };
 
     if (typeof module !== 'undefined' && module.exports) module.exports = api;

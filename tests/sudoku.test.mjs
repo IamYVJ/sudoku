@@ -177,6 +177,21 @@ test('findStep: every explained step is correct and walks a graded puzzle to the
     assert.equal(pref.cell, any.cell);
 });
 
+test('challenge codes round-trip and reject junk', () => {
+    const code = E.encodeChallenge('hard', FIX_PUZZLE);
+    assert.match(code, /^h[0-9a-zA-Z]+$/);
+    assert.ok(code.length <= 48, `short enough for a link (${code.length})`);
+    assert.deepEqual(E.decodeChallenge(code), { difficulty: 'hard', puzzle: FIX_PUZZLE });
+    for (let seed = 1; seed <= 20; seed++) {
+        const d = ['easy', 'medium', 'hard', 'expert'][seed % 4];
+        const r = E.generate(d, { seed, budgetMs: 2000 });
+        assert.deepEqual(E.decodeChallenge(E.encodeChallenge(d, r.puzzle)), { difficulty: d, puzzle: r.puzzle });
+    }
+    const zeros = '0'.repeat(80) + '5';
+    assert.equal(E.decodeChallenge(E.encodeChallenge('easy', zeros)).puzzle, zeros);
+    for (const bad of [null, '', 'q123', 'h', 'h!!', 'h' + 'Z'.repeat(50)]) assert.equal(E.decodeChallenge(bad), null, String(bad));
+});
+
 test('medium generation is fast', () => {
     const t = [];
     for (let s = 100; s < 110; s++) { const t0 = performance.now(); E.generate('medium', { seed: s }); t.push(performance.now() - t0); }

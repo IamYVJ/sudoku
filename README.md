@@ -14,6 +14,8 @@ generated right in your browser — with pencil-mark notes, hints, undo, dark mo
   - **Expert** — near-minimal grids that go beyond pairs (think X-Wings and chains).
 - **Daily puzzle** — one puzzle a day, the same for everyone, with the difficulty rotating
   through the week. Solve it on consecutive days to build a streak, then share your time.
+- **Challenge a friend** — after a win, share a link to the exact same puzzle with your time
+  to beat. The link carries the grid itself, so it opens instantly on any device.
 - **Exactly one solution, every time** — each puzzle is checked for uniqueness before you see it.
 - **Pencil-mark notes** — toggle Notes (or hold Shift) to jot candidates; placing a digit
   clears it from the notes in its row, column, and box.
