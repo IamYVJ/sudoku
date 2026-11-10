@@ -143,6 +143,40 @@ test('daily puzzle: numbering, weekday rotation, same grid on every device', () 
     assert.notEqual(E.daily('2026-11-10').seed, E.daily('2026-11-11').seed);
 });
 
+test('findStep: every explained step is correct and walks a graded puzzle to the end', () => {
+    const walk = (puzzle, solution) => {
+        const g = E.parse(puzzle);
+        let steps = 0;
+        for (;;) {
+            const st = E.findStep(g);
+            if (!st) break;
+            assert.equal(g[st.cell], 0, 'step targets an empty cell');
+            assert.equal(String(st.digit), solution[st.cell], `step digit at ${st.cell}`);
+            assert.ok(['hiddenSingle', 'nakedSingle'].includes(st.technique));
+            assert.ok(Array.isArray(st.via));
+            if (st.technique === 'hiddenSingle') assert.ok(E.UNITS[st.unit].includes(st.cell));
+            g[st.cell] = st.digit;
+            steps++;
+        }
+        return { solved: E.stringify(g) === solution, steps };
+    };
+    assert.equal(walk(FIX_PUZZLE, FIX_SOLUTION).solved, true);
+    let usedVia = false;
+    for (let seed = 1; seed <= 4; seed++) {
+        const r = E.generate('hard', { seed, budgetMs: 5000 });
+        if (r.level !== 2) continue;
+        assert.equal(walk(r.puzzle, r.solution).solved, true, `hard seed ${seed} solved by steps`);
+        const g = E.parse(r.puzzle);
+        for (let st = E.findStep(g); st; st = E.findStep(g)) { if (st.via.length) usedVia = true; g[st.cell] = st.digit; }
+    }
+    assert.ok(usedVia, 'hard puzzles need eliminations at some point');
+    // A preferred cell is explained when it has a single.
+    const g = E.parse(FIX_PUZZLE);
+    const any = E.findStep(g);
+    const pref = E.findStep(g, any.cell);
+    assert.equal(pref.cell, any.cell);
+});
+
 test('medium generation is fast', () => {
     const t = [];
     for (let s = 100; s < 110; s++) { const t0 = performance.now(); E.generate('medium', { seed: s }); t.push(performance.now() - t0); }

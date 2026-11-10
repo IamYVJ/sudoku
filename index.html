@@ -176,6 +176,10 @@
             </div>
 
             <div class="controls" id="controls">
+                <div class="hint-note" id="hint-note" hidden>
+                    <span class="hint-note-title" id="hint-note-title">Hint</span>
+                    <span class="hint-note-text" id="hint-note-text"></span>
+                </div>
                 <div class="tools" role="toolbar" aria-label="Tools">
                     <button class="tool-btn" id="undo-btn" type="button">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
@@ -226,7 +230,7 @@
                 <li>Tap a cell, then a number to place it.</li>
                 <li>Notes mode pencils in small candidates. Placing a digit clears it from the notes in the same row, column and box.</li>
                 <li>Clashing digits turn red.</li>
-                <li>Hint fixes a mistake first, otherwise fills the most constrained cell.</li>
+                <li>Hint fixes a mistake first. Otherwise it fills the next logical step and tells you why, such as a hidden single in a box.</li>
                 <li>Every puzzle has exactly one solution. Easy to Hard never need guessing.</li>
                 <li>The Daily puzzle is the same for everyone each day. Solve it on consecutive days to build a streak, then share your result.</li>
             </ul>

@@ -161,6 +161,181 @@
         return true;
     }
 
+    // ── Candidate eliminations (shared by the grader and the hint finder) ──
+    // Each takes the grid values and candidate masks, prunes candidates in place and
+    // returns true if anything changed.
+    function elimLocked(vals, cand) {
+        let changed = false;
+        // Pointing: box -> row/col
+        for (let b = 0; b < 9; b++) {
+            const cells = UNITS[18 + b];
+            for (let d = 1; d <= 9; d++) {
+                const bt = 1 << (d - 1);
+                let n = 0, sameRow = true, sameCol = true, r0 = -1, c0 = -1;
+                for (let k = 0; k < 9; k++) {
+                    const c = cells[k];
+                    if (!vals[c] && (cand[c] & bt)) {
+                        if (n === 0) { r0 = ROW[c]; c0 = COL[c]; }
+                        else { if (ROW[c] !== r0) sameRow = false; if (COL[c] !== c0) sameCol = false; }
+                        n++;
+                    }
+                }
+                if (n < 2) continue;
+                if (sameRow) {
+                    const line = UNITS[r0];
+                    for (let k = 0; k < 9; k++) {
+                        const c = line[k];
+                        if (BOX[c] !== b && !vals[c] && (cand[c] & bt)) { cand[c] &= ~bt; changed = true; }
+                    }
+                }
+                if (sameCol) {
+                    const line = UNITS[9 + c0];
+                    for (let k = 0; k < 9; k++) {
+                        const c = line[k];
+                        if (BOX[c] !== b && !vals[c] && (cand[c] & bt)) { cand[c] &= ~bt; changed = true; }
+                    }
+                }
+            }
+        }
+        // Claiming: row/col -> box
+        for (let u = 0; u < 18; u++) {
+            const cells = UNITS[u];
+            for (let d = 1; d <= 9; d++) {
+                const bt = 1 << (d - 1);
+                let n = 0, sameBox = true, b0 = -1;
+                for (let k = 0; k < 9; k++) {
+                    const c = cells[k];
+                    if (!vals[c] && (cand[c] & bt)) {
+                        if (n === 0) b0 = BOX[c]; else if (BOX[c] !== b0) sameBox = false;
+                        n++;
+                    }
+                }
+                if (n < 2 || !sameBox) continue;
+                const boxCells = UNITS[18 + b0];
+                for (let k = 0; k < 9; k++) {
+                    const c = boxCells[k];
+                    const inLine = u < 9 ? ROW[c] === u : COL[c] === u - 9;
+                    if (!inLine && !vals[c] && (cand[c] & bt)) { cand[c] &= ~bt; changed = true; }
+                }
+            }
+        }
+        return changed;
+    }
+
+    function elimNakedPairs(vals, cand) {
+        let changed = false;
+        for (let u = 0; u < 27; u++) {
+            const cells = UNITS[u];
+            for (let a = 0; a < 8; a++) {
+                const ca = cells[a];
+                if (vals[ca] || POP[cand[ca]] !== 2) continue;
+                for (let b = a + 1; b < 9; b++) {
+                    const cb = cells[b];
+                    if (vals[cb] || cand[cb] !== cand[ca]) continue;
+                    const m = cand[ca];
+                    for (let k = 0; k < 9; k++) {
+                        const c = cells[k];
+                        if (c === ca || c === cb || vals[c]) continue;
+                        if (cand[c] & m) { cand[c] &= ~m; changed = true; }
+                    }
+                }
+            }
+        }
+        return changed;
+    }
+
+    function elimHiddenPairs(vals, cand) {
+        let changed = false;
+        for (let u = 0; u < 27; u++) {
+            const cells = UNITS[u];
+            const pos = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+            let placed = 0;
+            for (let k = 0; k < 9; k++) { const v = vals[cells[k]]; if (v) placed |= 1 << (v - 1); }
+            for (let d = 1; d <= 9; d++) {
+                const bt = 1 << (d - 1);
+                let p = 0;
+                for (let k = 0; k < 9; k++) { const c = cells[k]; if (!vals[c] && (cand[c] & bt)) p |= 1 << k; }
+                pos[d] = p;
+            }
+            for (let d1 = 1; d1 < 9; d1++) {
+                if ((placed & (1 << (d1 - 1))) || POP[pos[d1]] !== 2) continue;
+                for (let d2 = d1 + 1; d2 <= 9; d2++) {
+                    if (pos[d2] !== pos[d1] || (placed & (1 << (d2 - 1)))) continue;
+                    const keep = (1 << (d1 - 1)) | (1 << (d2 - 1));
+                    for (let k = 0; k < 9; k++) {
+                        if (!(pos[d1] & (1 << k))) continue;
+                        const c = cells[k];
+                        if (cand[c] & ~keep) { cand[c] &= keep; changed = true; }
+                    }
+                }
+            }
+        }
+        return changed;
+    }
+
+    // ── Next logical step (for explained hints) ──
+    // Hidden singles in boxes, then rows, then columns, then naked singles. If none exists,
+    // apply eliminations until one appears. Returns
+    // { cell, digit, technique: 'hiddenSingle' | 'nakedSingle', unit, via: [...] } or null.
+    const SCAN_ORDER = [];
+    for (let u = 18; u < 27; u++) SCAN_ORDER.push(u);
+    for (let u = 0; u < 18; u++) SCAN_ORDER.push(u);
+
+    function onlyCellFor(vals, cand, u, bt) {
+        const cells = UNITS[u];
+        let n = 0, at = -1;
+        for (let k = 0; k < 9; k++) {
+            const c = cells[k];
+            if (!vals[c] && (cand[c] & bt)) { n++; at = c; }
+        }
+        return n === 1 ? at : -1;
+    }
+
+    function findSingle(vals, cand, prefer) {
+        if (prefer >= 0 && !vals[prefer] && cand[prefer]) {
+            const m = cand[prefer];
+            const units = [CELL_UNITS[prefer][2], CELL_UNITS[prefer][0], CELL_UNITS[prefer][1]];
+            for (const u of units) {
+                for (let d = 1; d <= 9; d++) {
+                    const bt = 1 << (d - 1);
+                    if ((m & bt) && onlyCellFor(vals, cand, u, bt) === prefer) return { cell: prefer, digit: d, technique: 'hiddenSingle', unit: u };
+                }
+            }
+            if (POP[m] === 1) return { cell: prefer, digit: 31 - Math.clz32(m) + 1, technique: 'nakedSingle', unit: -1 };
+        }
+        for (const u of SCAN_ORDER) {
+            for (let d = 1; d <= 9; d++) {
+                const at = onlyCellFor(vals, cand, u, 1 << (d - 1));
+                if (at >= 0) return { cell: at, digit: d, technique: 'hiddenSingle', unit: u };
+            }
+        }
+        for (let i = 0; i < 81; i++) {
+            if (!vals[i] && POP[cand[i]] === 1) return { cell: i, digit: 31 - Math.clz32(cand[i]) + 1, technique: 'nakedSingle', unit: -1 };
+        }
+        return null;
+    }
+
+    function findStep(grid, prefer) {
+        const vals = toGrid(grid);
+        const cand = new Uint16Array(81);
+        for (let i = 0; i < 81; i++) cand[i] = vals[i] ? 0 : candidates(vals, i);
+        const pref = prefer === undefined ? -1 : prefer;
+        let step = findSingle(vals, cand, pref);
+        if (step) { step.via = []; return step; }
+        const via = [];
+        for (let k = 0; k < 64; k++) {
+            let t;
+            if (elimLocked(vals, cand)) t = 'locked';
+            else if (elimNakedPairs(vals, cand)) t = 'nakedPair';
+            else if (elimHiddenPairs(vals, cand)) t = 'hiddenPair';
+            else break;
+            if (!via.includes(t)) via.push(t);
+            step = findSingle(vals, cand, pref);
+            if (step) { step.via = via; return step; }
+        }
+        return null;
+    }
+
     // ── Grader (human-style techniques) ──
     // Scratch buffers reused between calls (no allocation in hot loops).
     const gVals = new Uint8Array(81);
@@ -229,115 +404,6 @@
             return progress;
         }
 
-        function locked() {
-            let changed = false;
-            // Pointing: box -> row/col
-            for (let b = 0; b < 9; b++) {
-                const cells = UNITS[18 + b];
-                for (let d = 1; d <= 9; d++) {
-                    const bt = 1 << (d - 1);
-                    let n = 0, sameRow = true, sameCol = true, r0 = -1, c0 = -1;
-                    for (let k = 0; k < 9; k++) {
-                        const c = cells[k];
-                        if (!vals[c] && (cand[c] & bt)) {
-                            if (n === 0) { r0 = ROW[c]; c0 = COL[c]; }
-                            else { if (ROW[c] !== r0) sameRow = false; if (COL[c] !== c0) sameCol = false; }
-                            n++;
-                        }
-                    }
-                    if (n < 2) continue;
-                    if (sameRow) {
-                        const line = UNITS[r0];
-                        for (let k = 0; k < 9; k++) {
-                            const c = line[k];
-                            if (BOX[c] !== b && !vals[c] && (cand[c] & bt)) { cand[c] &= ~bt; changed = true; }
-                        }
-                    }
-                    if (sameCol) {
-                        const line = UNITS[9 + c0];
-                        for (let k = 0; k < 9; k++) {
-                            const c = line[k];
-                            if (BOX[c] !== b && !vals[c] && (cand[c] & bt)) { cand[c] &= ~bt; changed = true; }
-                        }
-                    }
-                }
-            }
-            // Claiming: row/col -> box
-            for (let u = 0; u < 18; u++) {
-                const cells = UNITS[u];
-                for (let d = 1; d <= 9; d++) {
-                    const bt = 1 << (d - 1);
-                    let n = 0, sameBox = true, b0 = -1;
-                    for (let k = 0; k < 9; k++) {
-                        const c = cells[k];
-                        if (!vals[c] && (cand[c] & bt)) {
-                            if (n === 0) b0 = BOX[c]; else if (BOX[c] !== b0) sameBox = false;
-                            n++;
-                        }
-                    }
-                    if (n < 2 || !sameBox) continue;
-                    const boxCells = UNITS[18 + b0];
-                    for (let k = 0; k < 9; k++) {
-                        const c = boxCells[k];
-                        const inLine = u < 9 ? ROW[c] === u : COL[c] === u - 9;
-                        if (!inLine && !vals[c] && (cand[c] & bt)) { cand[c] &= ~bt; changed = true; }
-                    }
-                }
-            }
-            return changed;
-        }
-
-        function nakedPairs() {
-            let changed = false;
-            for (let u = 0; u < 27; u++) {
-                const cells = UNITS[u];
-                for (let a = 0; a < 8; a++) {
-                    const ca = cells[a];
-                    if (vals[ca] || POP[cand[ca]] !== 2) continue;
-                    for (let b = a + 1; b < 9; b++) {
-                        const cb = cells[b];
-                        if (vals[cb] || cand[cb] !== cand[ca]) continue;
-                        const m = cand[ca];
-                        for (let k = 0; k < 9; k++) {
-                            const c = cells[k];
-                            if (c === ca || c === cb || vals[c]) continue;
-                            if (cand[c] & m) { cand[c] &= ~m; changed = true; }
-                        }
-                    }
-                }
-            }
-            return changed;
-        }
-
-        function hiddenPairs() {
-            let changed = false;
-            for (let u = 0; u < 27; u++) {
-                const cells = UNITS[u];
-                const pos = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-                let placed = 0;
-                for (let k = 0; k < 9; k++) { const v = vals[cells[k]]; if (v) placed |= 1 << (v - 1); }
-                for (let d = 1; d <= 9; d++) {
-                    const bt = 1 << (d - 1);
-                    let p = 0;
-                    for (let k = 0; k < 9; k++) { const c = cells[k]; if (!vals[c] && (cand[c] & bt)) p |= 1 << k; }
-                    pos[d] = p;
-                }
-                for (let d1 = 1; d1 < 9; d1++) {
-                    if ((placed & (1 << (d1 - 1))) || POP[pos[d1]] !== 2) continue;
-                    for (let d2 = d1 + 1; d2 <= 9; d2++) {
-                        if (pos[d2] !== pos[d1] || (placed & (1 << (d2 - 1)))) continue;
-                        const keep = (1 << (d1 - 1)) | (1 << (d2 - 1));
-                        for (let k = 0; k < 9; k++) {
-                            if (!(pos[d1] & (1 << k))) continue;
-                            const c = cells[k];
-                            if (cand[c] & ~keep) { cand[c] &= keep; changed = true; }
-                        }
-                    }
-                }
-            }
-            return changed;
-        }
-
         let usedTier2 = false;
         for (;;) {
             let progress;
@@ -346,9 +412,9 @@
                 if (progress < 0) return { level: 3, solved: false, steps };
             } while (progress > 0);
             if (empty === 0) break;
-            if (locked()) { steps.locked++; usedTier2 = true; continue; }
-            if (nakedPairs()) { steps.nakedPair++; usedTier2 = true; continue; }
-            if (hiddenPairs()) { steps.hiddenPair++; usedTier2 = true; continue; }
+            if (elimLocked(vals, cand)) { steps.locked++; usedTier2 = true; continue; }
+            if (elimNakedPairs(vals, cand)) { steps.nakedPair++; usedTier2 = true; continue; }
+            if (elimHiddenPairs(vals, cand)) { steps.hiddenPair++; usedTier2 = true; continue; }
             break;
         }
         if (empty === 0) return { level: usedTier2 ? 2 : 1, solved: true, steps };
@@ -456,7 +522,7 @@
         DIFFICULTIES,
         createRng, parse, stringify, candidates,
         countSolutions, solve, isValidSolution, grade, generate,
-        daily
+        daily, findStep
     };
 
     if (typeof module !== 'undefined' && module.exports) module.exports = api;

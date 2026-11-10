@@ -44,7 +44,8 @@
         runningSince: null,
         tickId: 0,
         lastSave: 0,
-        lastShownSecond: -1
+        lastShownSecond: -1,
+        hintUnit: -1                    // unit highlighted by the last explained hint
     };
 
     let stats = defaultStats();
@@ -483,6 +484,7 @@
         const prev = state.game;
         if (prev && prev !== g) { prev.sel = state.selected; prev.nm = state.notesMode; saveGame(); }
         state.game = g;
+        if (el.hintNote) clearHintNote();
         state.selected = g.sel === undefined ? -1 : g.sel;
         state.notesMode = !!g.nm;
         cellKeys.fill('');
@@ -708,6 +710,8 @@
         const selVal = sel >= 0 ? g.values[sel] : 0;
         let peerSet = null;
         if (sel >= 0) { peerSet = new Uint8Array(81); const p = E.PEERS[sel]; for (let k = 0; k < p.length; k++) peerSet[p[k]] = 1; }
+        const hintSet = new Uint8Array(81);
+        if (state.hintUnit >= 0) E.UNITS[state.hintUnit].forEach((c) => { hintSet[c] = 1; });
         const tabIdx = sel >= 0 ? sel : 0;
         for (let i = 0; i < 81; i++) {
             const cell = cells[i];
@@ -721,6 +725,7 @@
             cl.toggle('is-conflict', !!state.conflicts[i]);
             cl.toggle('is-selected', i === sel);
             cl.toggle('is-peer', !!peerSet && peerSet[i] === 1 && i !== sel);
+            cl.toggle('is-hint-unit', hintSet[i] === 1 && i !== sel);
             cl.toggle('is-same', !!selVal && v === selVal && i !== sel);
             const key = v + '|' + g.notes[i] + '|' + (v ? 0 : selVal);
             if (key !== cellKeys[i]) {
@@ -803,8 +808,21 @@
         return !!g && i >= 0 && g.status === 'playing' && !isUserPaused() && !g.given[i] && !g.hinted.has(i);
     }
 
+    function showHintNote(title, text, unit) {
+        el.hintTitle.textContent = title;
+        el.hintText.textContent = text;
+        el.hintNote.hidden = false;
+        state.hintUnit = unit;
+    }
+    function clearHintNote() {
+        if (el.hintNote.hidden && state.hintUnit < 0) return;
+        el.hintNote.hidden = true;
+        state.hintUnit = -1;
+    }
+
     function selectCell(i, opts) {
         if (!state.game) return;
+        if (i !== state.selected) clearHintNote();
         state.selected = i;
         render();
         if (opts && opts.focus) cells[i].focus({ preventScroll: true });
@@ -837,6 +855,7 @@
 
     function afterChange(i, opts) {
         const g = state.game;
+        if (!(opts && opts.keepHint)) clearHintNote();
         computeConflicts();
         render();
         if (opts && opts.pop && i >= 0) {
@@ -928,20 +947,50 @@
         saveGame();
     }
 
+    const UNIT_NAME = (u) => (u < 9 ? 'Row ' + (u + 1) : u < 18 ? 'Column ' + (u - 8) : 'Box ' + (u - 17));
+    const VIA_NAME = { locked: 'locked candidates', nakedPair: 'naked pairs', hiddenPair: 'hidden pairs' };
+
+    function explainStep(st) {
+        const d = st.digit;
+        let title, text;
+        if (st.technique === 'hiddenSingle') {
+            title = 'Hidden single';
+            text = UNIT_NAME(st.unit) + ' needs a ' + d + ', and this is the only cell in it where ' + d + ' fits.';
+        } else {
+            title = 'Naked single';
+            text = 'Every other digit already appears in this cell\'s row, column or box, so only ' + d + ' fits.';
+        }
+        if (st.via.length) {
+            const names = st.via.map((v) => VIA_NAME[v]);
+            const list = names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0];
+            title += ' · after ' + list;
+            text = 'Ruling out candidates with ' + list + ' leaves one option: ' + text.charAt(0).toLowerCase() + text.slice(1);
+        }
+        return { title, text };
+    }
+
     function hint() {
         const g = state.game;
         if (!g || g.status !== 'playing' || isUserPaused()) return;
-        let t = -1;
+        let t = -1, note = null, unit = -1;
         const sel = state.selected;
-        if (sel >= 0 && editable(sel) && g.values[sel] !== g.solution[sel]) {
-            t = sel;
+        const wrong = (i) => g.values[i] && g.values[i] !== g.solution[i] && !g.given[i] && !g.hinted.has(i);
+        // 1. Fix a mistake: the selected cell first, then any other.
+        if (sel >= 0 && editable(sel) && wrong(sel)) t = sel;
+        else for (let i = 0; i < 81; i++) if (wrong(i)) { t = i; break; }
+        if (t >= 0) {
+            note = { title: 'Mistake fixed', text: 'That ' + g.values[t] + ' was wrong. This cell is ' + g.solution[t] + '.' };
         } else {
-            for (let i = 0; i < 81; i++) {
-                if (g.values[i] && g.values[i] !== g.solution[i] && !g.given[i] && !g.hinted.has(i)) { t = i; break; }
+            // 2. The next logical step, preferring the selected cell.
+            const st = E.findStep(g.values, sel >= 0 && editable(sel) && !g.values[sel] ? sel : -1);
+            if (st && st.digit === g.solution[st.cell]) {
+                t = st.cell;
+                note = explainStep(st);
+                unit = st.technique === 'hiddenSingle' ? st.unit : -1;
             }
-            if (t >= 0) toast('Fixed a mistake');
         }
         if (t < 0) {
+            // 3. Beyond the techniques the hint knows: reveal the most constrained cell.
             let best = [], bestN = 10;
             for (let i = 0; i < 81; i++) {
                 if (g.values[i]) continue;
@@ -949,6 +998,7 @@
                 if (n < bestN) { bestN = n; best = [i]; } else if (n === bestN) best.push(i);
             }
             if (best.length) t = best[(Math.random() * best.length) | 0];
+            if (t >= 0) note = { title: 'Advanced step', text: 'No simple step is left here, so this reveals the cell with the fewest candidates (' + bestN + ').' };
         }
         if (t < 0) return;
         const d = g.solution[t];
@@ -960,8 +1010,10 @@
         for (let k = 0; k < peers.length; k++) { const p = peers[k]; if (!g.values[p]) g.notes[p] &= ~bit(d); }
         g.undo = g.undo.map((e) => ({ c: e.c.filter((x) => x[0] !== t), s: e.s })).filter((e) => e.c.length);
         state.selected = t;
-        afterChange(t, { pop: true });
-        announce('Hint: row ' + (E.ROW[t] + 1) + ', column ' + (E.COL[t] + 1) + ' is ' + d);
+        clearHintNote();
+        if (note) showHintNote(note.title, note.text, unit);
+        afterChange(t, { pop: true, keepHint: true });
+        announce('Hint: row ' + (E.ROW[t] + 1) + ', column ' + (E.COL[t] + 1) + ' is ' + d + '. ' + (note ? note.text : ''));
     }
 
     // ── Modals ──
@@ -1193,6 +1245,7 @@
             notesState: 'notes-state', hintCount: 'hint-count', timer: 'timer', difficultyLabel: 'game-difficulty',
             continueBtn: 'continue-btn', continueSub: 'continue-sub', solvedNewBtn: 'solved-new-btn',
             dailyBtn: 'daily-btn', dailyTitle: 'daily-title', dailySub: 'daily-sub',
+            hintNote: 'hint-note', hintTitle: 'hint-note-title', hintText: 'hint-note-text',
             diffDesc: 'difficulty-description', startBtn: 'start-btn', startLabel: 'start-btn-label',
             prevDiff: 'stats-preview-diff', prevPlayed: 'prev-played', prevWin: 'prev-winpct', prevBest: 'prev-best'
         };

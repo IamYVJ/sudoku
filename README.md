@@ -19,8 +19,10 @@ generated right in your browser — with pencil-mark notes, hints, undo, dark mo
   clears it from the notes in its row, column, and box.
 - **Gentle feedback** — clashing digits turn red, and the selected cell's row, column, box,
   and matching digits are highlighted. The game never peeks at the answer for you.
-- **Hints, undo, erase** — a hint fixes a mistake first, otherwise fills the most
-  constrained cell. Best times only count hint-free solves.
+- **Hints that teach** — a hint fixes a mistake first; otherwise it fills the next logical
+  step and says why ("Box 5 needs a 7, and this is the only cell where 7 fits"), naming any
+  pairs or locked candidates it used. Best times only count hint-free solves.
+- **Undo and erase** — step back through every move.
 - **Timer with pause** — pausing hides the board; the clock stops when you switch tabs.
 - **Picks up where you left off** — your game is saved as you play.
 - **Local stats per difficulty** — played, win rate, best and average time, plus daily streaks.

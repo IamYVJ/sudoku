@@ -740,6 +740,7 @@ button { font: inherit; color: inherit; }
 
 /* precedence: later wins */
 .cell.is-peer     { background: var(--cell-peer); }
+.cell.is-hint-unit { background: var(--accent-soft); }
 .cell.is-same     { background: var(--cell-same); }
 .cell.is-conflict { background: var(--cell-conflict); }
 .cell.is-selected { background: var(--cell-selected); box-shadow: inset 0 0 0 2px var(--accent-primary); }
@@ -812,6 +813,33 @@ button { font: inherit; color: inherit; }
 }
 
 .pause-overlay .start-btn { width: auto; min-width: 180px; margin-top: 4px; }
+
+/* ── Hint explanation ── */
+.hint-note {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 9px 12px;
+    border: 1px solid var(--accent-primary);
+    background: var(--accent-soft);
+    border-radius: var(--radius-sm);
+    animation: fadeIn 0.2s ease;
+}
+
+.hint-note-title {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent-primary);
+}
+
+.hint-note-text {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-primary);
+}
 
 /* ── Tools & numpad ── */
 .tools {
