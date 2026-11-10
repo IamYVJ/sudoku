@@ -1,7 +1,7 @@
 # Sudoku
 
-A clean, modern Sudoku: pick a difficulty and solve a fresh puzzle generated right in your
-browser — with pencil-mark notes, hints, undo, dark mode, and local stats.
+A clean, modern Sudoku: play the daily puzzle or pick a difficulty and solve a fresh puzzle
+generated right in your browser — with pencil-mark notes, hints, undo, dark mode, and local stats.
 
 **Play it live: https://iamyvj.github.io/sudoku/**
 
@@ -12,6 +12,8 @@ browser — with pencil-mark notes, hints, undo, dark mode, and local stats.
   - **Medium** — about 32 clues; still singles only, but you'll have to hunt for them.
   - **Hard** — needs pointing pairs, box/line reduction, or naked/hidden pairs.
   - **Expert** — near-minimal grids that go beyond pairs (think X-Wings and chains).
+- **Daily puzzle** — one puzzle a day, the same for everyone, with the difficulty rotating
+  through the week. Solve it on consecutive days to build a streak, then share your time.
 - **Exactly one solution, every time** — each puzzle is checked for uniqueness before you see it.
 - **Pencil-mark notes** — toggle Notes (or hold Shift) to jot candidates; placing a digit
   clears it from the notes in its row, column, and box.
@@ -21,7 +23,7 @@ browser — with pencil-mark notes, hints, undo, dark mode, and local stats.
   constrained cell. Best times only count hint-free solves.
 - **Timer with pause** — pausing hides the board; the clock stops when you switch tabs.
 - **Picks up where you left off** — your game is saved as you play.
-- **Local stats per difficulty** — played, win rate, best and average time.
+- **Local stats per difficulty** — played, win rate, best and average time, plus daily streaks.
 - **Dark / light theme**, remembered across visits.
 - **Built for phones and keyboards** — big tap targets, a layout that fits any screen, and
   full keyboard play.
@@ -51,6 +53,8 @@ dependencies.
   techniques people use — singles, then pointing pairs, box/line reduction, and naked/hidden
   pairs — and the hardest technique it needs decides the level. Easy and Medium are also
   dug in symmetric pairs, for the classic look.
+- **The daily puzzle needs no server.** The date is hashed into a seed, and the generator runs
+  a fixed number of attempts instead of racing the clock, so every device builds the same grid.
 - **Generation stays off the UI thread.** `generator.worker.js` runs the engine in a Web
   Worker, and the next puzzle is prepared in the background, so "New Game" is usually instant.
 - **One engine, shared everywhere.** The page, the worker, and the tests all load the same

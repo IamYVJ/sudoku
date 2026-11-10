@@ -54,7 +54,22 @@
                 <p class="logo-subtitle">Nine rows, nine columns, one solution. Fresh puzzles, made in your browser.</p>
             </div>
 
-            <button id="continue-btn" class="daily-btn" type="button" hidden>
+            <button id="daily-btn" class="daily-btn" type="button" aria-describedby="daily-sub">
+                <svg class="daily-btn-cal" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/>
+                    <path d="M3.5 10h17M8 3v4M16 3v4"/>
+                    <rect x="10.5" y="13" width="3" height="3" rx=".6" fill="currentColor" stroke="none"/>
+                </svg>
+                <span class="daily-btn-text">
+                    <span class="daily-btn-title" id="daily-title">Daily</span>
+                    <span class="daily-btn-sub" id="daily-sub">A new puzzle every day</span>
+                </span>
+                <svg class="daily-btn-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+
+            <button id="continue-btn" class="daily-btn is-quiet" type="button" hidden>
                 <svg class="daily-btn-cal" width="26" height="26" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
                     <rect x="8" y="8" width="48" height="48" rx="4"/>
                     <path d="M24 8v48M40 8v48M8 24h48M8 40h48"/>
@@ -67,7 +82,7 @@
                     <path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             </button>
-            <div class="home-divider" id="home-divider" hidden><span>or start a new puzzle</span></div>
+            <div class="home-divider" id="home-divider"><span>or start a new puzzle</span></div>
 
             <div class="settings-card">
                 <div class="setting-group">
@@ -148,7 +163,6 @@
         </header>
 
         <main class="game-main" id="game-main">
-            <div id="message-container" class="message-container" role="status" aria-live="polite" aria-atomic="true"></div>
             <div id="sr-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
 
             <div class="board-wrap" id="board-wrap">
@@ -193,6 +207,9 @@
     </section>
 </div>
 
+<!-- Toasts sit above both screens and the modals -->
+<div id="message-container" class="message-container" role="status" aria-live="polite" aria-atomic="true"></div>
+
 <!-- Modals live outside #app so the app can be made inert while one is open -->
 <div id="help-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="help-title" aria-hidden="true">
     <div class="modal-backdrop" data-close></div>
@@ -211,6 +228,7 @@
                 <li>Clashing digits turn red.</li>
                 <li>Hint fixes a mistake first, otherwise fills the most constrained cell.</li>
                 <li>Every puzzle has exactly one solution. Easy to Hard never need guessing.</li>
+                <li>The Daily puzzle is the same for everyone each day. Solve it on consecutive days to build a streak, then share your result.</li>
             </ul>
             <dl class="help-keys">
                 <dt><kbd>1</kbd>–<kbd>9</kbd></dt><dd>Enter a digit</dd>
@@ -268,12 +286,8 @@
                 <h3 class="result-title" id="win-title-big">Beautifully done.</h3>
                 <p class="result-sub" id="win-sub">Medium · no hints</p>
                 <p><span class="best-badge" id="win-best-badge" hidden>New best</span></p>
-                <div class="result-stats">
-                    <div class="stat-item"><div class="stat-value" id="win-time">0:00</div><div class="stat-label">Time</div></div>
-                    <div class="stat-item"><div class="stat-value" id="win-best">—</div><div class="stat-label">Best</div></div>
-                    <div class="stat-item"><div class="stat-value" id="win-avg">—</div><div class="stat-label">Average</div></div>
-                    <div class="stat-item"><div class="stat-value" id="win-hints">0</div><div class="stat-label">Hints</div></div>
-                </div>
+                <div class="result-stats" id="win-stats"></div>
+                <p class="result-next" id="win-next" hidden></p>
                 <div class="result-actions">
                     <button class="result-btn primary" id="win-new-btn" type="button">New Medium Game</button>
                     <button class="result-btn secondary" id="win-home-btn" type="button">Home</button>

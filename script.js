@@ -8,7 +8,9 @@
     // ── Constants & storage ──
     const KEYS = {
         theme: 'theme',                 // shared with the sister sites; raw 'light' | 'dark'
-        game: 'sudoku-game',
+        game: 'sudoku-game',            // classic game in progress
+        dailyGame: 'sudoku-daily-game', // today's daily in progress
+        daily: 'sudoku-daily',          // daily results by date (streaks)
         stats: 'sudoku-stats',
         settings: 'sudoku-settings',
         helpSeen: 'sudoku-help-seen'
@@ -26,12 +28,15 @@
     const prefersReducedMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     const bit = (d) => 1 << (d - 1);
     const label = (d) => E.DIFFICULTIES[d].label;
+    const gameName = (g) => (g.mode === 'daily' ? 'Daily #' + g.number + ' · ' : '') + label(g.difficulty);
+    const hintText = (n) => (n ? n + (n === 1 ? ' hint' : ' hints') : 'no hints');
 
     // ── State ──
     const state = {
         screen: 'home',
         difficulty: 'medium',
-        game: null,
+        game: null,                     // the active game (one of state.games)
+        games: { classic: null, daily: null },
         selected: -1,
         notesMode: false,
         conflicts: new Uint8Array(81),
@@ -43,6 +48,7 @@
     };
 
     let stats = defaultStats();
+    let dailyData = { v: 1, results: {} };
 
     const el = {};          // cached elements (filled at boot)
     let cells = [];         // 81 cell elements
@@ -65,6 +71,22 @@
         return parts.join(' ');
     }
 
+    // ── Calendar days (the player's local day) ──
+    const pad2 = (n) => String(n).padStart(2, '0');
+    function dayKey(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+    function todayKey() { return dayKey(new Date()); }
+    function keyToUTC(k) { return Date.UTC(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10)); }
+    function untilMidnight() {
+        const now = new Date();
+        const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        return next - now;
+    }
+    function fmtCountdown(ms) {
+        const m = Math.max(1, Math.ceil(ms / 60000));
+        const h = Math.floor(m / 60);
+        return h ? h + 'h ' + (m % 60) + 'm' : m + 'm';
+    }
+
     // ── Announcements & toast ──
     function announce(text) {
         const a = el.announcer;
@@ -72,7 +94,7 @@
         setTimeout(() => { a.textContent = text; }, 30);
     }
     let toastTimer = 0;
-    function toast(text) {
+    function toast(text, ms) {
         const c = el.messages;
         c.textContent = '';
         const m = document.createElement('div');
@@ -80,8 +102,33 @@
         m.textContent = text;
         c.appendChild(m);
         clearTimeout(toastTimer);
-        toastTimer = setTimeout(() => { if (m.parentNode) m.parentNode.removeChild(m); }, 1800);
+        toastTimer = setTimeout(() => { if (m.parentNode) m.parentNode.removeChild(m); }, ms || 1800);
     }
+
+    // ── Sharing ──
+    // Phones get the native share sheet; everything else copies to the clipboard.
+    async function shareText(text) {
+        const coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+        if (navigator.share && coarse) {
+            try { await navigator.share({ text }); return; }
+            catch (e) { if (e && e.name === 'AbortError') return; }
+        }
+        let ok = false;
+        try { await navigator.clipboard.writeText(text); ok = true; }
+        catch (e) {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+            document.body.removeChild(ta);
+        }
+        toast(ok ? 'Copied to clipboard' : 'Could not copy');
+    }
+    const siteUrl = () => location.origin + location.pathname;
 
     // ── Theme ──
     function applyTheme(t) {
@@ -135,25 +182,69 @@
         return { isBest, best: s.bestMs, avg: s.won ? s.totalMs / s.won : null };
     }
 
+    // ── Daily results & streaks ──
+    function loadDaily() {
+        const raw = store.get(KEYS.daily);
+        const out = { v: 1, results: {} };
+        if (!raw || raw.v !== 1 || !raw.results || typeof raw.results !== 'object') return out;
+        Object.keys(raw.results).forEach((k) => {
+            const r = raw.results[k];
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || !r || typeof r.ms !== 'number' || !(r.ms > 0)) return;
+            out.results[k] = { ms: r.ms, hints: Math.max(0, r.hints | 0), mistakes: Math.max(0, r.mistakes | 0) };
+        });
+        return out;
+    }
+    function saveDaily() { store.set(KEYS.daily, dailyData); }
+    function dailyStreaks() {
+        const res = dailyData.results;
+        const keys = Object.keys(res).sort();
+        let max = 0, run = 0, prev = null;
+        keys.forEach((k) => {
+            run = prev !== null && keyToUTC(k) - keyToUTC(prev) === 86400000 ? run + 1 : 1;
+            if (run > max) max = run;
+            prev = k;
+        });
+        const d = new Date();
+        if (!res[dayKey(d)]) d.setDate(d.getDate() - 1);
+        let current = 0;
+        while (res[dayKey(d)]) { current++; d.setDate(d.getDate() - 1); }
+        let best = null;
+        keys.forEach((k) => { const ms = res[k].ms; if (!res[k].hints && (best === null || ms < best)) best = ms; });
+        return { current, max, solved: keys.length, best };
+    }
+    function dailyShareText(info, r) {
+        const st = dailyStreaks();
+        const lines = [
+            'Sudoku Daily #' + info.number + ' · ' + label(info.difficulty),
+            '⏱️ ' + fmt(r.ms) + ' · ' + hintText(r.hints)
+        ];
+        if (st.current > 1) lines.push('🔥 ' + st.current + '-day streak');
+        lines.push(siteUrl());
+        return lines.join('\n');
+    }
+
     // ── Settings ──
     function loadSettings() {
         const s = store.get(KEYS.settings);
         if (s && s.v === 1) {
             if (DIFFS.includes(s.difficulty)) state.difficulty = s.difficulty;
-            return { screen: s.screen === 'game' ? 'game' : 'home' };
+            return { screen: s.screen === 'game' ? 'game' : 'home', active: s.active === 'daily' ? 'daily' : 'classic' };
         }
-        return { screen: 'home' };
+        return { screen: 'home', active: 'classic' };
     }
     function saveSettings() {
-        store.set(KEYS.settings, { v: 1, difficulty: state.difficulty, screen: state.screen });
+        store.set(KEYS.settings, {
+            v: 1, difficulty: state.difficulty, screen: state.screen,
+            active: state.game && state.game.mode === 'daily' ? 'daily' : 'classic'
+        });
     }
 
     // ── Game persistence ──
     function saveGame() {
         const g = state.game;
         if (!g || g.status !== 'playing') return;
-        store.set(KEYS.game, {
-            v: 1,
+        store.set(g.mode === 'daily' ? KEYS.dailyGame : KEYS.game, {
+            v: 1, mode: g.mode, date: g.date, number: g.number,
             difficulty: g.difficulty, seed: g.seed, level: g.level,
             puzzle: E.stringify(g.puzzle), solution: E.stringify(g.solution), values: E.stringify(g.values),
             notes: Array.from(g.notes), hinted: Array.from(g.hinted), hintsUsed: g.hintsUsed,
@@ -164,10 +255,13 @@
         state.lastSave = Date.now();
     }
 
-    function loadGame() {
-        const r = store.get(KEYS.game);
+    function loadGame(mode) {
+        const key = mode === 'daily' ? KEYS.dailyGame : KEYS.game;
+        const r = store.get(key);
         try {
             if (!r || r.v !== 1 || !DIFFS.includes(r.difficulty)) throw 0;
+            // A daily only stays resumable on its own day.
+            if (mode === 'daily' && (r.date !== todayKey() || dailyData.results[r.date])) throw 0;
             if (typeof r.puzzle !== 'string' || !/^[0-9]{81}$/.test(r.puzzle)) throw 0;
             if (typeof r.values !== 'string' || !/^[0-9]{81}$/.test(r.values)) throw 0;
             if (typeof r.solution !== 'string' || !/^[1-9]{81}$/.test(r.solution)) throw 0;
@@ -191,6 +285,7 @@
             const given = new Uint8Array(81);
             for (let i = 0; i < 81; i++) given[i] = puzzle[i] ? 1 : 0;
             const game = {
+                mode, date: mode === 'daily' ? r.date : null, number: mode === 'daily' ? Number(r.number) || 0 : 0,
                 difficulty: r.difficulty, seed: r.seed >>> 0, level: Number(r.level) || 0,
                 puzzle, solution: E.parse(r.solution), values: E.parse(r.values),
                 notes: Uint16Array.from(r.notes), given, hinted: new Set(hinted),
@@ -198,10 +293,11 @@
                 elapsed: Math.max(0, Number(r.elapsed) || 0),
                 undo, createdAt: Number(r.createdAt) || Date.now(), status: 'playing'
             };
-            const sel = Number.isInteger(r.selected) && r.selected >= 0 && r.selected < 81 ? r.selected : -1;
-            return { game, selected: sel, notesMode: !!r.notesMode };
+            game.sel = Number.isInteger(r.selected) && r.selected >= 0 && r.selected < 81 ? r.selected : -1;
+            game.nm = !!r.notesMode;
+            return game;
         } catch (e) {
-            store.del(KEYS.game);
+            store.del(key);
             return null;
         }
     }
@@ -226,6 +322,16 @@
         }
         renderMeta();
     }
+    // Banks running time into the active game and stops the clock (before switching games).
+    function stopClock() {
+        const g = state.game;
+        if (state.runningSince === null) return;
+        if (g) g.elapsed += performance.now() - state.runningSince;
+        state.runningSince = null;
+        clearInterval(state.tickId);
+        state.tickId = 0;
+    }
+
     function tick() {
         const sec = Math.floor(currentElapsed() / 1000);
         if (sec !== state.lastShownSecond) renderMeta();
@@ -254,7 +360,7 @@
         el.pauseBtn.setAttribute('aria-label', paused ? 'Resume' : 'Pause');
         el.pauseBtn.querySelector('.icon-pause').hidden = paused;
         el.pauseBtn.querySelector('.icon-play').hidden = !paused;
-        if (state.game) el.pauseSub.textContent = label(state.game.difficulty) + ' · ' + fmt(currentElapsed());
+        if (state.game) el.pauseSub.textContent = gameName(state.game) + ' · ' + fmt(currentElapsed());
     }
 
     // ── Puzzle supply (worker bridge) ──
@@ -289,18 +395,23 @@
     const newSeed = () => (Math.random() * 4294967296) >>> 0;
     const nextFrame = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
-    function generateOnMainThread(diff) {
-        return nextFrame().then(() => E.generate(diff, { seed: newSeed(), budgetMs: 250 }));
+    // opts: { seed, maxAttempts } for a reproducible puzzle (daily); omitted = random.
+    function generateOnMainThread(diff, opts) {
+        const o = opts || {};
+        const seed = o.seed === undefined ? newSeed() : o.seed;
+        return nextFrame().then(() => E.generate(diff, { seed, budgetMs: 250, maxAttempts: o.maxAttempts }));
     }
 
-    function generateRaw(diff) {
+    function generateRaw(diff, opts) {
         const w = getWorker();
-        if (!w) return generateOnMainThread(diff);
+        if (!w) return generateOnMainThread(diff, opts);
+        const o = opts || {};
         return new Promise((resolve, reject) => {
             const id = ++reqSeq;
             pending.set(id, { resolve, reject });
-            w.postMessage({ id, difficulty: diff, seed: newSeed(), budgetMs: 4000 });
-        }).catch(() => generateOnMainThread(diff));
+            const seed = o.seed === undefined ? newSeed() : o.seed;
+            w.postMessage({ id, difficulty: diff, seed, budgetMs: 4000, maxAttempts: o.maxAttempts });
+        }).catch(() => generateOnMainThread(diff, opts));
     }
 
     function requestPuzzle(diff) {
@@ -331,11 +442,11 @@
 
     async function startNewGame(diff) {
         if (starting) return;
-        const g = state.game;
-        if (g && g.status === 'playing' && (currentElapsed() > 0 || g.undo.length || g.hintsUsed)) {
+        const g = state.games.classic;
+        if (g && g.status === 'playing' && (gameElapsed(g) > 0 || g.undo.length || g.hintsUsed)) {
             const ok = await confirmDialog({
                 title: 'New puzzle?',
-                text: 'Your ' + label(g.difficulty) + ' puzzle in progress (' + fmt(currentElapsed()) + ') will be lost.',
+                text: 'Your ' + label(g.difficulty) + ' puzzle in progress (' + fmt(gameElapsed(g)) + ') will be lost.',
                 okLabel: 'New puzzle', cancelLabel: 'Keep playing'
             });
             if (!ok) return;
@@ -350,7 +461,7 @@
         }, 150);
         try {
             const p = await requestPuzzle(diff);
-            createGame(p);
+            createGame(p, { mode: 'classic' });
             stats[diff].played++;
             saveStats();
             saveGame();
@@ -366,20 +477,67 @@
         }
     }
 
-    function createGame(p) {
+    // Makes g the active game, remembering the outgoing game's cursor.
+    function setActive(g) {
+        stopClock();
+        const prev = state.game;
+        if (prev && prev !== g) { prev.sel = state.selected; prev.nm = state.notesMode; saveGame(); }
+        state.game = g;
+        state.selected = g.sel === undefined ? -1 : g.sel;
+        state.notesMode = !!g.nm;
+        cellKeys.fill('');
+    }
+
+    // meta: { mode: 'classic' | 'daily', date, number }
+    function createGame(p, meta) {
+        const m = meta || {};
         const puzzle = E.parse(p.puzzle);
         const given = new Uint8Array(81);
         let first = -1;
         for (let i = 0; i < 81; i++) { given[i] = puzzle[i] ? 1 : 0; if (first < 0 && !puzzle[i]) first = i; }
-        state.game = {
+        const mode = m.mode === 'daily' ? 'daily' : 'classic';
+        const g = {
+            mode, date: m.date || null, number: m.number || 0,
             difficulty: p.difficulty, seed: p.seed, level: p.level,
             puzzle, solution: E.parse(p.solution), values: puzzle.slice(),
             notes: new Uint16Array(81), given, hinted: new Set(),
-            hintsUsed: 0, elapsed: 0, undo: [], createdAt: Date.now(), status: 'playing'
+            hintsUsed: 0, elapsed: 0, undo: [], createdAt: Date.now(), status: 'playing',
+            sel: first, nm: false
         };
-        state.selected = first;
-        state.notesMode = false;
+        state.games[mode] = g;
+        setActive(g);
         state.pauseReasons.delete('user');
+        return g;
+    }
+
+    // ── Daily ──
+    let dailyStarting = false;
+
+    async function openDaily() {
+        if (dailyStarting || starting) return;
+        const info = E.daily(todayKey());
+        const done = dailyData.results[info.key];
+        if (done) { showDailyResult(info, done); return; }
+        const saved = state.games.daily;
+        if (saved && saved.date === info.key && saved.status === 'playing') {
+            setActive(saved);
+            showGame({ paused: false });
+            return;
+        }
+        dailyStarting = true;
+        const btn = el.dailyBtn;
+        const busyTimer = setTimeout(() => { btn.setAttribute('aria-busy', 'true'); el.dailySub.textContent = 'Generating…'; }, 150);
+        try {
+            const p = await generateRaw(info.difficulty, { seed: info.seed, maxAttempts: info.maxAttempts });
+            createGame(p, { mode: 'daily', date: info.key, number: info.number });
+            saveGame();
+            showGame({ paused: false });
+        } finally {
+            clearTimeout(busyTimer);
+            btn.removeAttribute('aria-busy');
+            dailyStarting = false;
+            updateHome();
+        }
     }
 
     function onSolved() {
@@ -388,8 +546,17 @@
         if (state.runningSince !== null) { g.elapsed += performance.now() - state.runningSince; state.runningSince = null; clearInterval(state.tickId); }
         g.status = 'won';
         const ms = Math.round(g.elapsed);
-        const res = recordWin(g.difficulty, ms, g.hintsUsed);
-        store.del(KEYS.game);
+        let res;
+        if (g.mode === 'daily') {
+            res = { ms, hints: g.hintsUsed, mistakes: 0 };
+            if (!dailyData.results[g.date]) { dailyData.results[g.date] = res; saveDaily(); }
+            else res = dailyData.results[g.date];
+            store.del(KEYS.dailyGame);
+        } else {
+            res = recordWin(g.difficulty, ms, g.hintsUsed);
+            store.del(KEYS.game);
+        }
+        state.games[g.mode] = null;
         g.undo = [];
         state.selected = -1;
         render();
@@ -398,18 +565,62 @@
         const delay = prefersReducedMotion() ? 0 : 700;
         setTimeout(() => {
             if (state.game !== g || state.screen !== 'game') return;
-            showWinModal(g, ms, res);
+            if (g.mode === 'daily') showDailyResult(E.daily(g.date), res);
+            else showWinModal(g, ms, res);
         }, delay);
     }
 
+    let winPrimary = null;
+
+    function fillStats(container, items) {
+        container.textContent = '';
+        items.forEach(([l, v]) => {
+            const it = document.createElement('div');
+            it.className = 'stat-item';
+            const val = document.createElement('div');
+            val.className = 'stat-value';
+            val.textContent = v;
+            const lab = document.createElement('div');
+            lab.className = 'stat-label';
+            lab.textContent = l;
+            it.appendChild(val);
+            it.appendChild(lab);
+            container.appendChild(it);
+        });
+    }
+
     function showWinModal(g, ms, res) {
-        $('win-time').textContent = fmt(ms);
-        $('win-best').textContent = res.best ? fmt(res.best) : '—';
-        $('win-avg').textContent = res.avg ? fmt(res.avg) : '—';
-        $('win-hints').textContent = String(g.hintsUsed);
+        $('win-title-big').textContent = 'Beautifully done.';
+        fillStats($('win-stats'), [
+            ['Time', fmt(ms)],
+            ['Best', res.best ? fmt(res.best) : '—'],
+            ['Average', res.avg ? fmt(res.avg) : '—'],
+            ['Hints', String(g.hintsUsed)]
+        ]);
         $('win-best-badge').hidden = !res.isBest;
-        $('win-sub').textContent = label(g.difficulty) + ' · ' + (g.hintsUsed ? g.hintsUsed + (g.hintsUsed === 1 ? ' hint' : ' hints') : 'no hints');
+        $('win-sub').textContent = label(g.difficulty) + ' · ' + hintText(g.hintsUsed);
+        $('win-next').hidden = true;
         $('win-new-btn').textContent = 'New ' + label(g.difficulty) + ' Game';
+        winPrimary = () => { closeModal('win-modal'); startNewGame(g.difficulty); };
+        openModal('win-modal');
+    }
+
+    function showDailyResult(info, r) {
+        const st = dailyStreaks();
+        $('win-title-big').textContent = 'Daily #' + info.number + ' solved.';
+        fillStats($('win-stats'), [
+            ['Time', fmt(r.ms)],
+            ['Hints', String(r.hints)],
+            ['Streak', String(st.current)],
+            ['Max', String(st.max)]
+        ]);
+        $('win-best-badge').hidden = true;
+        $('win-sub').textContent = label(info.difficulty) + ' · ' + hintText(r.hints);
+        const next = $('win-next');
+        next.textContent = 'Next daily in ' + fmtCountdown(untilMidnight());
+        next.hidden = false;
+        $('win-new-btn').textContent = 'Share result';
+        winPrimary = () => shareText(dailyShareText(info, r));
         openModal('win-modal');
     }
 
@@ -567,9 +778,9 @@
         if (!g) return;
         const ms = currentElapsed();
         state.lastShownSecond = Math.floor(ms / 1000);
-        el.difficultyLabel.textContent = label(g.difficulty) + (g.status === 'won' ? ' · Solved' : '');
+        el.difficultyLabel.textContent = gameName(g) + (g.status === 'won' ? ' · Solved' : '');
         el.timer.textContent = fmt(ms);
-        if (!el.pauseOverlay.hidden) el.pauseSub.textContent = label(g.difficulty) + ' · ' + fmt(ms);
+        if (!el.pauseOverlay.hidden) el.pauseSub.textContent = gameName(g) + ' · ' + fmt(ms);
     }
 
     function render() {
@@ -582,6 +793,7 @@
         const won = g.status === 'won';
         el.controls.hidden = won;
         el.solvedActions.hidden = !won;
+        if (won) el.solvedNewBtn.textContent = g.mode === 'daily' ? 'Share result' : 'New Game';
         if (!won) el.board.classList.remove('is-won');
     }
 
@@ -808,36 +1020,33 @@
     function renderStatsModal() {
         const body = $('stats-body');
         body.textContent = '';
-        DIFFS.forEach((d) => {
-            const s = stats[d];
+        const addBlock = (title, items) => {
             const block = document.createElement('div');
             block.className = 'stats-block';
             const h = document.createElement('h3');
-            h.textContent = label(d);
+            h.textContent = title;
             const grid = document.createElement('div');
             grid.className = 'result-stats';
-            const items = [
+            fillStats(grid, items);
+            block.appendChild(h);
+            block.appendChild(grid);
+            body.appendChild(block);
+        };
+        const st = dailyStreaks();
+        addBlock('Daily', [
+            ['Solved', String(st.solved)],
+            ['Streak', String(st.current)],
+            ['Max', String(st.max)],
+            ['Best', st.best ? fmt(st.best) : '—']
+        ]);
+        DIFFS.forEach((d) => {
+            const s = stats[d];
+            addBlock(label(d), [
                 ['Played', String(s.played)],
                 ['Win %', s.played ? Math.round((s.won / s.played) * 100) + '%' : '—'],
                 ['Best', s.bestMs ? fmt(s.bestMs) : '—'],
                 ['Average', s.won ? fmt(s.totalMs / s.won) : '—']
-            ];
-            items.forEach(([l, v]) => {
-                const it = document.createElement('div');
-                it.className = 'stat-item';
-                const val = document.createElement('div');
-                val.className = 'stat-value';
-                val.textContent = v;
-                const lab = document.createElement('div');
-                lab.className = 'stat-label';
-                lab.textContent = l;
-                it.appendChild(val);
-                it.appendChild(lab);
-                grid.appendChild(it);
-            });
-            block.appendChild(h);
-            block.appendChild(grid);
-            body.appendChild(block);
+            ]);
         });
     }
 
@@ -880,16 +1089,31 @@
         if (opts && opts.paused) el.resumeBtn.focus({ preventScroll: true });
     }
 
+    function gameElapsed(g) { return g === state.game ? currentElapsed() : g.elapsed; }
+
+    function updateDailyCard() {
+        const info = E.daily(todayKey());
+        const done = dailyData.results[info.key];
+        const st = dailyStreaks();
+        const g = state.games.daily;
+        el.dailyTitle.textContent = 'Daily #' + info.number;
+        let sub;
+        if (done) sub = 'Solved in ' + fmt(done.ms) + (st.current > 1 ? ' · ' + st.current + '-day streak' : '') + ' · Share';
+        else if (g && g.date === info.key && g.status === 'playing') sub = label(info.difficulty) + ' · In progress · ' + fmt(gameElapsed(g));
+        else sub = label(info.difficulty) + ' · ' + (st.current ? st.current + '-day streak, keep it going' : 'Same puzzle for everyone today');
+        if (!dailyStarting) el.dailySub.textContent = sub;
+    }
+
     function updateHome() {
-        const g = state.game;
+        const g = state.games.classic;
         const hasSaved = !!g && g.status === 'playing';
         el.continueBtn.hidden = !hasSaved;
-        el.homeDivider.hidden = !hasSaved;
         if (hasSaved) {
             let filled = 0;
             for (let i = 0; i < 81; i++) if (g.values[i]) filled++;
-            el.continueSub.textContent = label(g.difficulty) + ' · ' + fmt(currentElapsed()) + ' · ' + filled + '/81';
+            el.continueSub.textContent = label(g.difficulty) + ' · ' + fmt(gameElapsed(g)) + ' · ' + filled + '/81';
         }
+        updateDailyCard();
         const d = state.difficulty;
         el.diffBtns.forEach((b) => {
             const on = b.dataset.difficulty === d;
@@ -967,7 +1191,8 @@
             pauseOverlay: 'pause-overlay', pauseSub: 'pause-sub', pauseBtn: 'pause-btn', resumeBtn: 'resume-btn',
             undoBtn: 'undo-btn', eraseBtn: 'erase-btn', notesBtn: 'notes-btn', hintBtn: 'hint-btn',
             notesState: 'notes-state', hintCount: 'hint-count', timer: 'timer', difficultyLabel: 'game-difficulty',
-            continueBtn: 'continue-btn', continueSub: 'continue-sub', homeDivider: 'home-divider',
+            continueBtn: 'continue-btn', continueSub: 'continue-sub', solvedNewBtn: 'solved-new-btn',
+            dailyBtn: 'daily-btn', dailyTitle: 'daily-title', dailySub: 'daily-sub',
             diffDesc: 'difficulty-description', startBtn: 'start-btn', startLabel: 'start-btn-label',
             prevDiff: 'stats-preview-diff', prevPlayed: 'prev-played', prevWin: 'prev-winpct', prevBest: 'prev-best'
         };
@@ -976,17 +1201,16 @@
 
         applyTheme(loadTheme());
         stats = loadStats();
+        dailyData = loadDaily();
         const settings = loadSettings();
         buildBoard();
         buildNumpad();
         try { history.replaceState({ sudoku: 'home' }, ''); } catch (e) { /* ignore */ }
 
-        const saved = loadGame();
-        if (saved) {
-            state.game = saved.game;
-            state.selected = saved.selected;
-            state.notesMode = saved.notesMode;
-        }
+        state.games.classic = loadGame('classic');
+        state.games.daily = loadGame('daily');
+        const resume = (settings.active === 'daily' && state.games.daily) || state.games.classic || state.games.daily;
+        if (resume) setActive(resume);
 
         // Handlers
         $('home-theme-toggle').addEventListener('click', toggleTheme);
@@ -994,7 +1218,11 @@
         $('home-help-btn').addEventListener('click', openHelp);
         $('open-stats-btn').addEventListener('click', openStats);
         el.startBtn.addEventListener('click', () => startNewGame(state.difficulty));
-        el.continueBtn.addEventListener('click', () => { if (state.game && state.game.status === 'playing') showGame({ paused: false }); });
+        el.continueBtn.addEventListener('click', () => {
+            const g = state.games.classic;
+            if (g && g.status === 'playing') { setActive(g); showGame({ paused: false }); }
+        });
+        el.dailyBtn.addEventListener('click', openDaily);
         el.diffBtns.forEach((b) => {
             b.addEventListener('click', () => setDifficulty(b.dataset.difficulty));
             b.addEventListener('keydown', (e) => {
@@ -1022,17 +1250,18 @@
         el.eraseBtn.addEventListener('click', erase);
         el.notesBtn.addEventListener('click', toggleNotesMode);
         el.hintBtn.addEventListener('click', hint);
-        $('solved-new-btn').addEventListener('click', () => startNewGame(state.game ? state.game.difficulty : state.difficulty));
+        el.solvedNewBtn.addEventListener('click', () => {
+            const g = state.game;
+            if (g && g.mode === 'daily') { const r = dailyData.results[g.date]; if (r) shareText(dailyShareText(E.daily(g.date), r)); }
+            else startNewGame(g ? g.difficulty : state.difficulty);
+        });
         $('solved-home-btn').addEventListener('click', goHome);
 
         document.querySelectorAll('.modal').forEach((m) => {
             m.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeModal(m.id); });
         });
-        $('win-new-btn').addEventListener('click', () => {
-            closeModal('win-modal');
-            startNewGame(state.game ? state.game.difficulty : state.difficulty);
-        });
-        $('win-home-btn').addEventListener('click', () => { closeModal('win-modal'); goHome(); });
+        $('win-new-btn').addEventListener('click', () => { if (winPrimary) winPrimary(); });
+        $('win-home-btn').addEventListener('click', () => { closeModal('win-modal'); if (state.screen === 'game') goHome(); });
         $('win-stats-btn').addEventListener('click', () => { closeModal('win-modal'); openStats(); });
         $('confirm-ok').addEventListener('click', () => {
             const r = confirmResolver;
@@ -1043,12 +1272,14 @@
         $('confirm-cancel').addEventListener('click', () => closeModal('confirm-modal'));
         $('reset-stats-btn').addEventListener('click', async () => {
             const ok = await confirmDialog({
-                title: 'Reset statistics?', text: 'All played, win and time records will be cleared. This cannot be undone.',
+                title: 'Reset statistics?', text: 'All played, win, time and daily streak records will be cleared. This cannot be undone.',
                 okLabel: 'Reset', cancelLabel: 'Cancel'
             });
             if (!ok) return;
             stats = defaultStats();
             saveStats();
+            dailyData = { v: 1, results: {} };
+            saveDaily();
             renderStatsModal();
             updateHome();
         });
@@ -1063,7 +1294,7 @@
         window.addEventListener('popstate', () => { if (state.screen === 'game') showHome(); });
 
         updateHome();
-        if (saved && settings.screen === 'game') showGame({ paused: true });
+        if (resume && settings.screen === 'game') showGame({ paused: true });
         else if (store.get(KEYS.helpSeen) !== '1') openHelp();
         prefetch(state.difficulty);
     }

@@ -121,6 +121,28 @@ test('generation is deterministic per seed', () => {
     assert.notEqual(a.puzzle, c.puzzle);
 });
 
+test('daily puzzle: numbering, weekday rotation, same grid on every device', () => {
+    const first = E.daily('2026-11-10');
+    assert.equal(first.number, 1);
+    assert.equal(E.daily('2026-11-11').number, 2);
+    assert.equal(E.daily('2027-11-10').number, 366);
+    assert.throws(() => E.daily('nope'));
+    const seen = new Set();
+    for (let day = 10; day <= 16; day++) {
+        const info = E.daily(`2026-11-${day}`);
+        seen.add(info.difficulty);
+        assert.ok(E.DIFFICULTIES[info.difficulty]);
+        // Wall-clock budget must not matter once maxAttempts is set.
+        const a = E.generate(info.difficulty, { seed: info.seed, maxAttempts: info.maxAttempts, budgetMs: 0 });
+        const b = E.generate(info.difficulty, { seed: info.seed, maxAttempts: info.maxAttempts, budgetMs: 60000 });
+        assert.equal(a.puzzle, b.puzzle, `daily ${info.key} reproducible`);
+        assert.equal(refCount(a.puzzle, 2), 1, `daily ${info.key} unique`);
+        assert.equal(a.solution, E.stringify(E.solve(a.puzzle)));
+    }
+    assert.equal(seen.size, 4, 'a week covers every difficulty');
+    assert.notEqual(E.daily('2026-11-10').seed, E.daily('2026-11-11').seed);
+});
+
 test('medium generation is fast', () => {
     const t = [];
     for (let s = 100; s < 110; s++) { const t0 = performance.now(); E.generate('medium', { seed: s }); t.push(performance.now() - t0); }

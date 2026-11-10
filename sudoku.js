@@ -366,6 +366,9 @@
         opts = opts || {};
         const seed = opts.seed === undefined ? ((Math.random() * 4294967296) >>> 0) : (opts.seed >>> 0);
         const budgetMs = opts.budgetMs === undefined ? 250 : opts.budgetMs;
+        // maxAttempts makes the result depend only on the seed (no wall clock), so every
+        // device builds the same puzzle — used for the daily puzzle.
+        const maxAttempts = opts.maxAttempts > 0 ? opts.maxAttempts | 0 : 0;
         const rng = createRng(seed);
         const t0 = now();
         const empty = new Uint8Array(81);
@@ -418,15 +421,42 @@
             else ok = level === cfg.target;
             if (ok) return finish(cand, false);
             best = better(best, cand);
-        } while (now() - t0 < budgetMs);
+        } while (maxAttempts ? attempts < maxAttempts : now() - t0 < budgetMs);
         return finish(best, true);
+    }
+
+    // ── Daily puzzle ──
+    // Puzzle #1 is 2026-11-10. Difficulty follows the weekday (Sunday first).
+    const DAILY_EPOCH = Date.UTC(2026, 10, 10);
+    const DAILY_ROTATION = ['expert', 'easy', 'medium', 'medium', 'hard', 'medium', 'hard'];
+    const DAILY_ATTEMPTS = 100;
+
+    function hashString(str) {
+        let h = 0x811c9dc5;
+        for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+        return h >>> 0;
+    }
+
+    // key: a calendar date 'YYYY-MM-DD' (the player's local day).
+    function daily(key) {
+        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key);
+        if (!m) throw new Error('Bad date key: ' + key);
+        const t = Date.UTC(+m[1], +m[2] - 1, +m[3]);
+        return {
+            key,
+            number: Math.round((t - DAILY_EPOCH) / 86400000) + 1,
+            difficulty: DAILY_ROTATION[new Date(t).getUTCDay()],
+            seed: hashString('sudoku-daily:' + key),
+            maxAttempts: DAILY_ATTEMPTS
+        };
     }
 
     const api = {
         ROW, COL, BOX, UNITS, CELL_UNITS, PEERS, POP, ALL,
         DIFFICULTIES,
         createRng, parse, stringify, candidates,
-        countSolutions, solve, isValidSolution, grade, generate
+        countSolutions, solve, isValidSolution, grade, generate,
+        daily
     };
 
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
