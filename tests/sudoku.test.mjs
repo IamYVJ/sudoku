@@ -178,6 +178,46 @@ test('findStep: every explained step is correct and walks a graded puzzle to the
     assert.equal(pref.cell, any.cell);
 });
 
+test('findStep elim: each technique is explained coherently (classic and diagonal)', () => {
+    const seen = { classic: new Set(), diagonal: new Set() };
+    for (const vname of ['classic', 'diagonal']) {
+        const T = E.variant(vname);
+        for (let seed = 1; seed <= 40 && seen[vname].size < 4; seed++) {
+            const r = E.generate(seed % 2 ? 'hard' : 'expert', { seed, variant: vname, maxAttempts: 6 });
+            const g = E.parse(r.puzzle);
+            for (let st = E.findStep(g, -1, vname); st; st = E.findStep(g, -1, vname)) {
+                assert.equal(String(st.digit), r.solution[st.cell]);
+                if (!st.via.length) assert.equal(st.elim, null);
+                else {
+                    const e = st.elim;
+                    assert.ok(e, 'a step after eliminations has elim detail');
+                    seen[vname].add(e.technique);
+                    assert.ok(['pointing', 'claiming', 'nakedPair', 'hiddenPair'].includes(e.technique));
+                    assert.ok(e.cells.length >= 2 && e.cells.every((c) => T.UNITS[e.unit].includes(c)), 'pattern cells lie in the unit');
+                    assert.ok(e.removed.length > 0);
+                    const digitMask = e.digits.reduce((m, d) => m | (1 << (d - 1)), 0);
+                    for (const [c, m] of e.removed) {
+                        assert.ok(!e.cells.includes(c) || e.technique === 'hiddenPair', 'removals are outside the pattern');
+                        assert.ok(m > 0 && m < 512);
+                        if (e.technique !== 'hiddenPair') assert.equal(m & ~digitMask, 0, 'removed digits are the pattern digits');
+                        else assert.equal(m & digitMask, 0, 'hidden pair removes the other digits');
+                        // The removed digits really are not the cell's solution.
+                        assert.equal(m & (1 << (r.solution.charCodeAt(c) - 49)), 0, 'never removes the true digit');
+                    }
+                    if (e.technique === 'pointing' || e.technique === 'claiming') {
+                        assert.equal(e.digits.length, 1);
+                        assert.ok(e.removed.every(([c]) => T.UNITS[e.target].includes(c)));
+                    }
+                }
+                g[st.cell] = st.digit;
+            }
+        }
+    }
+    for (const v of ['classic', 'diagonal']) {
+        for (const t of ['pointing', 'claiming', 'nakedPair', 'hiddenPair']) assert.ok(seen[v].has(t), v + ' hard/expert exercise ' + t);
+    }
+});
+
 test('challenge codes round-trip and reject junk', () => {
     const code = E.encodeChallenge('hard', FIX_PUZZLE);
     assert.match(code, /^h[0-9a-zA-Z]+$/);

@@ -30,8 +30,9 @@ generated right in your browser — with pencil-mark notes, hints, undo, dark mo
 - **Strict mode** — an optional setting for a tougher game: any wrong digit is marked at
   once, and three mistakes end the puzzle (you can retry the same grid).
 - **Hints that teach** — a hint fixes a mistake first; otherwise it fills the next logical
-  step and says why ("Box 5 needs a 7, and this is the only cell where 7 fits"), naming any
-  pairs or locked candidates it used. Best times only count hint-free solves.
+  step and says why ("Box 5 needs a 7, and this is the only cell where 7 fits"). When a pair
+  or pointing/claiming pattern unlocks the step, the hint spells out that elimination and
+  highlights the cells involved. Best times only count hint-free solves.
 - **Undo, redo and erase** — step back and forward through every move.
 - **Haptics** — on phones that support it, a light tap confirms each digit and a short buzz
   flags a clash or mistake (switch it off in Settings).

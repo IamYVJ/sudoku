@@ -73,6 +73,7 @@
         tickId: 0,
         lastSave: 0,
         lastShownSecond: -1,
+        hintCells: [],                  // pattern cells of the last explained hint
         hintUnit: -1                    // unit highlighted by the last explained hint
     };
 
@@ -965,6 +966,8 @@
         if (sel >= 0) { peerSet = new Uint8Array(81); const p = vt.PEERS[sel]; for (let k = 0; k < p.length; k++) peerSet[p[k]] = 1; }
         const hintSet = new Uint8Array(81);
         if (state.hintUnit >= 0 && vt.UNITS[state.hintUnit]) vt.UNITS[state.hintUnit].forEach((c) => { hintSet[c] = 1; });
+        const patternSet = new Uint8Array(81);
+        state.hintCells.forEach((c) => { patternSet[c] = 1; });
         const tabIdx = sel >= 0 ? sel : 0;
         for (let i = 0; i < 81; i++) {
             const cell = cells[i];
@@ -981,6 +984,7 @@
             cl.toggle('is-selected', i === sel);
             cl.toggle('is-peer', !!peerSet && peerSet[i] === 1 && i !== sel);
             cl.toggle('is-hint-unit', hintSet[i] === 1 && i !== sel);
+            cl.toggle('is-hint-pattern', patternSet[i] === 1 && i !== sel);
             cl.toggle('is-same', !!selVal && v === selVal && i !== sel);
             const key = v + '|' + g.notes[i] + '|' + (v ? 0 : selVal);
             if (key !== cellKeys[i]) {
@@ -1083,16 +1087,18 @@
         return !!g && i >= 0 && g.status === 'playing' && !isUserPaused() && !g.given[i] && !g.hinted.has(i);
     }
 
-    function showHintNote(title, text, unit) {
+    function showHintNote(title, text, unit, cells) {
+        state.hintCells = cells || [];
         el.hintTitle.textContent = title;
         el.hintText.textContent = text;
         el.hintNote.hidden = false;
         state.hintUnit = unit;
     }
     function clearHintNote() {
-        if (el.hintNote.hidden && state.hintUnit < 0) return;
+        if (el.hintNote.hidden && state.hintUnit < 0 && !state.hintCells.length) return;
         el.hintNote.hidden = true;
         state.hintUnit = -1;
+        state.hintCells = [];
     }
 
     function selectCell(i, opts) {
@@ -1276,29 +1282,55 @@
     const UNIT_NAME = (u) => (u < 9 ? 'Row ' + (u + 1) : u < 18 ? 'Column ' + (u - 8) : u < 27 ? 'Box ' + (u - 17) : u === 27 ? 'The main diagonal' : 'The anti-diagonal');
     const VIA_NAME = { locked: 'locked candidates', nakedPair: 'naked pairs', hiddenPair: 'hidden pairs' };
 
+    const TECH_TITLE = { pointing: 'Pointing candidates', claiming: 'Claiming candidates', nakedPair: 'Naked pair', hiddenPair: 'Hidden pair' };
+    const aDigit = (d) => (d === 8 ? 'an ' : 'a ') + d;
+    const unitKind = (u) => (u < 9 ? 'row' : u < 18 ? 'column' : u < 27 ? 'box' : 'diagonal');
+    const unitLower = (u) => UNIT_NAME(u).toLowerCase();
+    const digitList = (ds, join) => (ds.length > 1 ? ds.slice(0, -1).join(', ') + ' ' + join + ' ' + ds[ds.length - 1] : String(ds[0]));
+
+    // One or two sentences naming the elimination, then what it leaves.
+    function explainElim(e, st) {
+        const where = unitLower(e.unit), d = digitList(e.digits, 'and');
+        let first;
+        const cut = [];
+        const hit = e.removed.find((x) => x[0] === st.cell);
+        if (hit) for (let k = 1; k <= 9; k++) if (hit[1] & bit(k)) cut.push(k);
+        if (e.technique === 'pointing') first = 'In ' + where + ', every ' + d + ' sits in ' + unitLower(e.target) + ', so ' + unitLower(e.target) + ' can\'t have ' + aDigit(e.digits[0]) + ' outside the box.';
+        else if (e.technique === 'claiming') first = 'In ' + where + ', every ' + d + ' sits in ' + unitLower(e.target) + ', so ' + unitLower(e.target) + ' can\'t have ' + aDigit(e.digits[0]) + ' outside the ' + unitKind(e.unit) + '.';
+        else if (e.technique === 'nakedPair') first = 'In ' + where + ', these two cells can only be ' + digitList(e.digits, 'or') + ', so ' + d + ' are ruled out elsewhere in the ' + unitKind(e.unit) + '.';
+        else first = 'In ' + where + ', ' + d + ' only fit in these two cells, so every other candidate is ruled out from them.';
+        const second = st.technique === 'hiddenSingle'
+            ? 'That leaves this as the only cell in ' + unitLower(st.unit) + ' for ' + aDigit(st.digit) + '.'
+            : (cut.length ? 'That takes ' + digitList(cut, 'and') + ' out of this cell, leaving ' : 'That leaves ') + st.digit + ' as the only option' + (cut.length ? '.' : ' here.');
+        return first + ' ' + second;
+    }
+
     function explainStep(st, variant) {
         const d = st.digit;
         let title, text;
         if (st.technique === 'hiddenSingle') {
             title = 'Hidden single';
-            text = UNIT_NAME(st.unit) + ' needs a ' + d + ', and this is the only cell in it where ' + d + ' fits.';
+            text = UNIT_NAME(st.unit) + ' needs ' + aDigit(d) + ', and this is the only cell in it where ' + d + ' fits.';
         } else {
             title = 'Naked single';
             text = 'Every other digit already appears in this cell\'s row, column' + (isDiag(variant) && (E.ROW[st.cell] === E.COL[st.cell] || E.ROW[st.cell] + E.COL[st.cell] === 8) ? ', box or diagonal' : ' or box') + ', so only ' + d + ' fits.';
         }
-        if (st.via.length) {
+        if (st.via.length && st.elim) {
+            title = TECH_TITLE[st.elim.technique] + ' · then a ' + title.toLowerCase();
+            text = explainElim(st.elim, st);
+        } else if (st.via.length) {
             const names = st.via.map((v) => VIA_NAME[v]);
             const list = names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names[0];
             title += ' · after ' + list;
             text = 'Ruling out candidates with ' + list + ' leaves one option: ' + text.charAt(0).toLowerCase() + text.slice(1);
         }
-        return { title, text };
+        return { title, text, unit: st.elim ? st.elim.unit : st.technique === 'hiddenSingle' ? st.unit : -1, cells: st.elim ? st.elim.cells : [] };
     }
 
     function hint() {
         const g = state.game;
         if (!g || g.status !== 'playing' || isUserPaused()) return;
-        let t = -1, note = null, unit = -1;
+        let t = -1, note = null, unit = -1, pattern = [];
         const sel = state.selected;
         const wrong = (i) => g.values[i] && g.values[i] !== g.solution[i] && !g.given[i] && !g.hinted.has(i);
         // 1. Fix a mistake: the selected cell first, then any other.
@@ -1312,7 +1344,8 @@
             if (st && st.digit === g.solution[st.cell]) {
                 t = st.cell;
                 note = explainStep(st, g.variant);
-                unit = st.technique === 'hiddenSingle' ? st.unit : -1;
+                unit = note.unit;
+                pattern = note.cells;
             }
         }
         if (t < 0) {
@@ -1339,7 +1372,7 @@
         g.redo = strip(g.redo);
         state.selected = t;
         clearHintNote();
-        if (note) showHintNote(note.title, note.text, unit);
+        if (note) showHintNote(note.title, note.text, unit, pattern);
         afterChange(t, { pop: true, keepHint: true });
         announce('Hint: row ' + (E.ROW[t] + 1) + ', column ' + (E.COL[t] + 1) + ' is ' + d + '. ' + (note ? note.text : ''));
     }

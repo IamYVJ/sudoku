@@ -248,8 +248,9 @@
 
     // ── Candidate eliminations (shared by the grader and the hint finder) ──
     // Each takes the grid values and candidate masks, prunes candidates in place and
-    // returns true if anything changed.
-    function elimLocked(vals, cand, T) {
+    // returns true if anything changed. An optional trailing `log` array (null in the grader)
+    // receives { technique, unit, cells, digits, removed: [[cell, digitMask], ...] } per elimination.
+    function elimLocked(vals, cand, T, log) {
         const UNITS = T.UNITS;
         let changed = false;
         // Pointing: box -> row/col
@@ -267,18 +268,18 @@
                     }
                 }
                 if (n < 2) continue;
-                if (sameRow) {
-                    const line = UNITS[r0];
+                if (sameRow || sameCol) {
+                    const lineU = sameRow ? r0 : 9 + c0;
+                    const line = UNITS[lineU];
+                    const removed = log ? [] : null;
                     for (let k = 0; k < 9; k++) {
                         const c = line[k];
-                        if (BOX[c] !== b && !vals[c] && (cand[c] & bt)) { cand[c] &= ~bt; changed = true; }
+                        if (BOX[c] !== b && !vals[c] && (cand[c] & bt)) { cand[c] &= ~bt; changed = true; if (removed) removed.push([c, bt]); }
                     }
-                }
-                if (sameCol) {
-                    const line = UNITS[9 + c0];
-                    for (let k = 0; k < 9; k++) {
-                        const c = line[k];
-                        if (BOX[c] !== b && !vals[c] && (cand[c] & bt)) { cand[c] &= ~bt; changed = true; }
+                    if (removed && removed.length) {
+                        const pat = [];
+                        for (let k = 0; k < 9; k++) { const c = cells[k]; if (!vals[c] && (cand[c] & bt)) pat.push(c); }
+                        log.push({ technique: 'pointing', unit: 18 + b, target: lineU, cells: pat, digits: [d], removed });
                     }
                 }
             }
@@ -298,17 +299,23 @@
                 }
                 if (n < 2 || !sameBox) continue;
                 const boxCells = UNITS[18 + b0];
+                const removed = log ? [] : null;
                 for (let k = 0; k < 9; k++) {
                     const c = boxCells[k];
                     const inLine = u < 9 ? ROW[c] === u : COL[c] === u - 9;
-                    if (!inLine && !vals[c] && (cand[c] & bt)) { cand[c] &= ~bt; changed = true; }
+                    if (!inLine && !vals[c] && (cand[c] & bt)) { cand[c] &= ~bt; changed = true; if (removed) removed.push([c, bt]); }
+                }
+                if (removed && removed.length) {
+                    const pat = [];
+                    for (let k = 0; k < 9; k++) { const c = cells[k]; if (!vals[c] && (cand[c] & bt)) pat.push(c); }
+                    log.push({ technique: 'claiming', unit: u, target: 18 + b0, cells: pat, digits: [d], removed });
                 }
             }
         }
         return changed;
     }
 
-    function elimNakedPairs(vals, cand, T) {
+    function elimNakedPairs(vals, cand, T, log) {
         const UNITS = T.UNITS;
         let changed = false;
         for (let u = 0; u < UNITS.length; u++) {
@@ -320,10 +327,16 @@
                     const cb = cells[b];
                     if (vals[cb] || cand[cb] !== cand[ca]) continue;
                     const m = cand[ca];
+                    const removed = log ? [] : null;
                     for (let k = 0; k < 9; k++) {
                         const c = cells[k];
                         if (c === ca || c === cb || vals[c]) continue;
-                        if (cand[c] & m) { cand[c] &= ~m; changed = true; }
+                        if (cand[c] & m) { if (removed) removed.push([c, cand[c] & m]); cand[c] &= ~m; changed = true; }
+                    }
+                    if (removed && removed.length) {
+                        const digits = [];
+                        for (let d = 1; d <= 9; d++) if (m & (1 << (d - 1))) digits.push(d);
+                        log.push({ technique: 'nakedPair', unit: u, cells: [ca, cb], digits, removed });
                     }
                 }
             }
@@ -331,7 +344,7 @@
         return changed;
     }
 
-    function elimHiddenPairs(vals, cand, T) {
+    function elimHiddenPairs(vals, cand, T, log) {
         const UNITS = T.UNITS;
         let changed = false;
         for (let u = 0; u < UNITS.length; u++) {
@@ -350,11 +363,15 @@
                 for (let d2 = d1 + 1; d2 <= 9; d2++) {
                     if (pos[d2] !== pos[d1] || (placed & (1 << (d2 - 1)))) continue;
                     const keep = (1 << (d1 - 1)) | (1 << (d2 - 1));
+                    const removed = log ? [] : null;
+                    const pat = [];
                     for (let k = 0; k < 9; k++) {
                         if (!(pos[d1] & (1 << k))) continue;
                         const c = cells[k];
-                        if (cand[c] & ~keep) { cand[c] &= keep; changed = true; }
+                        pat.push(c);
+                        if (cand[c] & ~keep) { if (removed) removed.push([c, cand[c] & ~keep]); cand[c] &= keep; changed = true; }
                     }
+                    if (removed && removed.length) log.push({ technique: 'hiddenPair', unit: u, cells: pat, digits: [d1, d2], removed });
                 }
             }
         }
@@ -409,19 +426,34 @@
         for (let i = 0; i < 81; i++) cand[i] = vals[i] ? 0 : candidates(vals, i, T.name);
         const pref = prefer === undefined ? -1 : prefer;
         let step = findSingle(vals, cand, pref, T);
-        if (step) { step.via = []; return step; }
+        if (step) { step.via = []; step.elim = null; return step; }
         const via = [];
+        const log = [];
         for (let k = 0; k < 64; k++) {
             let t;
-            if (elimLocked(vals, cand, T)) t = 'locked';
-            else if (elimNakedPairs(vals, cand, T)) t = 'nakedPair';
-            else if (elimHiddenPairs(vals, cand, T)) t = 'hiddenPair';
+            if (elimLocked(vals, cand, T, log)) t = 'locked';
+            else if (elimNakedPairs(vals, cand, T, log)) t = 'nakedPair';
+            else if (elimHiddenPairs(vals, cand, T, log)) t = 'hiddenPair';
             else break;
             if (!via.includes(t)) via.push(t);
             step = findSingle(vals, cand, pref, T);
-            if (step) { step.via = via; return step; }
+            if (step) { step.via = via; step.elim = pickElim(log, step, T); return step; }
         }
         return null;
+    }
+
+    // The first logged elimination that bears on the single: for a naked single, one that removed a
+    // candidate from the hint cell; for a hidden single, one that removed the digit from another cell
+    // of the hint unit. Falls back to the first entry.
+    function pickElim(log, step, T) {
+        const bt = 1 << (step.digit - 1);
+        const unitCells = step.technique === 'hiddenSingle' ? T.UNITS[step.unit] : null;
+        for (const e of log) {
+            for (const [c, m] of e.removed) {
+                if (unitCells ? (c !== step.cell && (m & bt) && unitCells.includes(c)) : c === step.cell) return e;
+            }
+        }
+        return log[0] || null;
     }
 
     // ── Grader (human-style techniques) ──
