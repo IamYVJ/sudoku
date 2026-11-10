@@ -56,6 +56,8 @@
         games: { classic: null, daily: null },
         selected: -1,
         notesMode: false,
+        armed: 0,                       // digit picked in digit-first mode
+        prefs: { digitFirst: false },
         conflicts: new Uint8Array(81),
         pauseReasons: new Set(),
         runningSince: null,
@@ -155,7 +157,7 @@
         if (meta) meta.content = t === 'light' ? '#f6f5f2' : '#0a0a0b';
         const pressed = String(t === 'dark');
         $('home-theme-toggle').setAttribute('aria-pressed', pressed);
-        $('theme-toggle').setAttribute('aria-pressed', pressed);
+        $('set-dark').setAttribute('aria-checked', pressed);
     }
     function toggleTheme() {
         const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
@@ -246,6 +248,9 @@
         const s = store.get(KEYS.settings);
         if (s && s.v === 1) {
             if (DIFFS.includes(s.difficulty)) state.difficulty = s.difficulty;
+            if (s.prefs && typeof s.prefs === 'object') {
+                Object.keys(state.prefs).forEach((k) => { if (typeof s.prefs[k] === 'boolean') state.prefs[k] = s.prefs[k]; });
+            }
             return { screen: s.screen === 'game' ? 'game' : 'home', active: s.active === 'daily' ? 'daily' : 'classic' };
         }
         return { screen: 'home', active: 'classic' };
@@ -253,8 +258,23 @@
     function saveSettings() {
         store.set(KEYS.settings, {
             v: 1, difficulty: state.difficulty, screen: state.screen,
-            active: state.game && state.game.mode === 'daily' ? 'daily' : 'classic'
+            active: state.game && state.game.mode === 'daily' ? 'daily' : 'classic',
+            prefs: state.prefs
         });
+    }
+
+    function renderSettings() {
+        document.querySelectorAll('.switch-row[data-pref]').forEach((b) => {
+            b.setAttribute('aria-checked', String(!!state.prefs[b.dataset.pref]));
+        });
+    }
+
+    function setPref(key, on) {
+        state.prefs[key] = on;
+        if (key === 'digitFirst' && !on) state.armed = 0;
+        saveSettings();
+        renderSettings();
+        if (state.game) render();
     }
 
     // ── Game persistence ──
@@ -508,6 +528,7 @@
         if (el.hintNote) clearHintNote();
         state.selected = g.sel === undefined ? -1 : g.sel;
         state.notesMode = !!g.nm;
+        state.armed = 0;
         cellKeys.fill('');
     }
 
@@ -772,7 +793,7 @@
         const g = state.game;
         if (!g) return;
         const sel = state.selected;
-        const selVal = sel >= 0 ? g.values[sel] : 0;
+        const selVal = state.armed || (sel >= 0 ? g.values[sel] : 0);
         let peerSet = null;
         if (sel >= 0) { peerSet = new Uint8Array(81); const p = E.PEERS[sel]; for (let k = 0; k < p.length; k++) peerSet[p[k]] = 1; }
         const hintSet = new Uint8Array(81);
@@ -818,11 +839,19 @@
         if (g) for (let i = 0; i < 81; i++) counts[g.values[i]]++;
         const off = !g || g.status !== 'playing' || isUserPaused();
         el.numpad.classList.toggle('is-notes', state.notesMode);
+        const df = state.prefs.digitFirst;
         for (let k = 0; k < 9; k++) {
             const d = k + 1, left = 9 - counts[d], b = keys[k];
             b.querySelector('.num-left').textContent = String(Math.max(0, left));
             b.disabled = off || left <= 0;
-            b.setAttribute('aria-label', state.notesMode ? 'Toggle note ' + d : 'Place ' + d + ', ' + Math.max(0, left) + ' left');
+            b.classList.toggle('is-armed', df && state.armed === d);
+            if (df) {
+                b.setAttribute('aria-pressed', String(state.armed === d));
+                b.setAttribute('aria-label', 'Pick ' + d + (state.notesMode ? ' for notes' : '') + ', ' + Math.max(0, left) + ' left');
+            } else {
+                b.removeAttribute('aria-pressed');
+                b.setAttribute('aria-label', state.notesMode ? 'Toggle note ' + d : 'Place ' + d + ', ' + Math.max(0, left) + ' left');
+            }
         }
     }
 
@@ -930,6 +959,11 @@
             c.classList.add('pop');
             setTimeout(() => c.classList.remove('pop'), 200);
         }
+        if (state.armed) {
+            let n = 0;
+            for (let k = 0; k < 81; k++) if (g.values[k] === state.armed) n++;
+            if (n >= 9 && !state.notesMode) { state.armed = 0; render(); }
+        }
         let solved = true;
         for (let k = 0; k < 81; k++) if (g.values[k] !== g.solution[k]) { solved = false; break; }
         if (solved) { onSolved(); return; }
@@ -1003,6 +1037,15 @@
         }
         if (entry.s >= 0) state.selected = entry.s;
         afterChange(-1);
+    }
+
+    // Digit-first: tapping a number picks it up (or puts it down); tapping cells then fills them.
+    function pickDigit(d) {
+        const g = state.game;
+        if (!g || g.status !== 'playing' || isUserPaused()) return;
+        state.armed = state.armed === d ? 0 : d;
+        render();
+        if (state.armed) announce(d + ' picked. Tap cells to ' + (state.notesMode ? 'note' : 'place') + ' it.');
     }
 
     function toggleNotesMode() {
@@ -1332,7 +1375,13 @@
 
         // Handlers
         $('home-theme-toggle').addEventListener('click', toggleTheme);
-        $('theme-toggle').addEventListener('click', toggleTheme);
+        $('set-dark').addEventListener('click', toggleTheme);
+        const openSettings = () => { renderSettings(); openModal('settings-modal'); };
+        $('home-settings-btn').addEventListener('click', openSettings);
+        $('settings-btn').addEventListener('click', openSettings);
+        document.querySelectorAll('.switch-row[data-pref]').forEach((b) => {
+            b.addEventListener('click', () => setPref(b.dataset.pref, !state.prefs[b.dataset.pref]));
+        });
         $('home-help-btn').addEventListener('click', openHelp);
         $('open-stats-btn').addEventListener('click', openStats);
         el.startBtn.addEventListener('click', () => startNewGame(state.difficulty));
@@ -1358,11 +1407,16 @@
         el.resumeBtn.addEventListener('click', () => setUserPaused(false));
         el.board.addEventListener('click', (e) => {
             const c = e.target.closest('.cell');
-            if (c) selectCell(+c.dataset.i, { focus: true });
+            if (!c) return;
+            const i = +c.dataset.i;
+            selectCell(i, { focus: true });
+            if (state.prefs.digitFirst && state.armed && editable(i)) inputDigit(state.armed, false);
         });
         el.numpad.addEventListener('click', (e) => {
             const b = e.target.closest('.num-key');
-            if (b && !b.disabled) inputDigit(+b.dataset.digit, false);
+            if (!b || b.disabled) return;
+            if (state.prefs.digitFirst) pickDigit(+b.dataset.digit);
+            else inputDigit(+b.dataset.digit, false);
         });
         el.undoBtn.addEventListener('click', undo);
         el.eraseBtn.addEventListener('click', erase);

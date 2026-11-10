@@ -38,6 +38,9 @@
                 <circle cx="12" cy="16.6" r="1" fill="currentColor"/>
             </svg>
         </button>
+        <button class="header-btn home-settings-toggle" id="home-settings-btn" type="button" aria-label="Settings" aria-haspopup="dialog">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg>
+        </button>
         <button class="header-btn home-theme-toggle" id="home-theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="true">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M12 3C7.03 3 3 7.03 3 12C3 16.97 7.03 21 12 21C13.28 21 14.5 20.72 15.61 20.21C14.5 18.95 13.84 17.27 13.84 15.42C13.84 11.41 17.09 8.16 21.1 8.16C21.53 8.16 21.95 8.2 22.36 8.27C21.2 5.18 17.91 3 12 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
@@ -154,10 +157,8 @@
                     <svg class="icon-pause" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6v12M15 6v12"/></svg>
                     <svg class="icon-play" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" hidden><path d="M8 5.5v13l10.5-6.5L8 5.5Z"/></svg>
                 </button>
-                <button class="header-btn" id="theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="true">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M12 3C7.03 3 3 7.03 3 12C3 16.97 7.03 21 12 21C13.28 21 14.5 20.72 15.61 20.21C14.5 18.95 13.84 17.27 13.84 15.42C13.84 11.41 17.09 8.16 21.1 8.16C21.53 8.16 21.95 8.2 22.36 8.27C21.2 5.18 17.91 3 12 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-                    </svg>
+                <button class="header-btn" id="settings-btn" type="button" aria-label="Settings" aria-haspopup="dialog">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.2"/><circle cx="10" cy="17" r="2.2"/></svg>
                 </button>
             </div>
         </header>
@@ -227,7 +228,7 @@
         <div class="modal-body">
             <p class="help-lead">Fill the grid so every row, column and 3×3 box contains the digits 1 to 9 exactly once.</p>
             <ul class="help-rules">
-                <li>Tap a cell, then a number to place it.</li>
+                <li>Tap a cell, then a number to place it. Prefer the number first? Turn on Digit-first input in Settings.</li>
                 <li>Notes mode pencils in small candidates. Placing a digit clears it from the notes in the same row, column and box.</li>
                 <li>Clashing digits turn red.</li>
                 <li>Hint fixes a mistake first. Otherwise it fills the next logical step and tells you why, such as a hidden single in a box.</li>
@@ -251,6 +252,36 @@
                 <p><strong>Medium.</strong> Fewer clues, still singles only.</p>
                 <p><strong>Hard.</strong> Needs pointing pairs, box/line reduction, or naked and hidden pairs.</p>
                 <p><strong>Expert.</strong> Near-minimal grids that may need X-Wings, chains and similar techniques.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="settings-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="settings-title">Settings</h2>
+            <button class="modal-close" data-close type="button" aria-label="Close">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="switch-list">
+                <button class="switch-row" type="button" role="switch" aria-checked="false" id="set-digit-first" data-pref="digitFirst">
+                    <span class="switch-text">
+                        <span class="switch-title">Digit-first input</span>
+                        <span class="switch-desc">Pick a number, then tap cells to fill it in. Tap the number again to let go.</span>
+                    </span>
+                    <span class="switch" aria-hidden="true"></span>
+                </button>
+                <button class="switch-row" type="button" role="switch" aria-checked="true" id="set-dark">
+                    <span class="switch-text">
+                        <span class="switch-title">Dark mode</span>
+                        <span class="switch-desc">Remembered on this device.</span>
+                    </span>
+                    <span class="switch" aria-hidden="true"></span>
+                </button>
             </div>
         </div>
     </div>

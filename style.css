@@ -189,6 +189,13 @@ button { font: inherit; color: inherit; }
     z-index: 10;
 }
 
+.home-settings-toggle {
+    position: absolute;
+    top: max(16px, env(safe-area-inset-top));
+    right: 68px;
+    z-index: 10;
+}
+
 .home-help-toggle {
     position: absolute;
     top: max(16px, env(safe-area-inset-top));
@@ -930,6 +937,13 @@ button { font: inherit; color: inherit; }
 
 .num-key:disabled { opacity: 0.3; cursor: default; }
 
+.num-key.is-armed {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: var(--accent-contrast);
+}
+.num-key.is-armed .num-left { color: inherit; opacity: 0.7; }
+
 .numpad.is-notes .num-digit {
     font-family: var(--mono);
     font-weight: 500;
@@ -1231,6 +1245,55 @@ kbd {
 
 .help-modes strong { color: var(--text-primary); }
 
+/* ── Settings switches ── */
+.switch-list { display: flex; flex-direction: column; }
+
+.switch-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 0;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid var(--border-color);
+    text-align: left;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+.switch-row:first-child { padding-top: 2px; }
+.switch-row:last-child { border-bottom: 0; padding-bottom: 2px; }
+
+.switch-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.switch-title { font-size: 14.5px; font-weight: 600; color: var(--text-primary); }
+.switch-desc { font-size: 12.5px; line-height: 1.45; color: var(--text-secondary); }
+
+.switch {
+    flex: none;
+    position: relative;
+    width: 44px;
+    height: 26px;
+    border-radius: var(--radius-pill);
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.switch::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+    transition: transform var(--transition-fast), background var(--transition-fast);
+}
+.switch-row[aria-checked="true"] .switch { background: var(--accent-primary); border-color: var(--accent-primary); }
+.switch-row[aria-checked="true"] .switch::after { transform: translateX(18px); background: var(--accent-contrast); }
+
 /* ── Hover (pointer devices only) ── */
 @media (hover: hover) {
     .option-btn:hover, .difficulty-btn:hover { border-color: var(--text-primary); }
@@ -1249,6 +1312,8 @@ kbd {
     .tool-btn:hover:not(:disabled) { border-color: var(--text-primary); }
     .tool-btn[aria-pressed="true"]:hover { border-color: var(--accent-primary); }
     .num-key:hover:not(:disabled) { background: color-mix(in srgb, var(--key-bg) 80%, var(--text-primary)); }
+    .num-key.is-armed:hover:not(:disabled) { background: var(--accent-2); }
+    .switch-row:hover .switch { border-color: var(--text-primary); }
     .cell:hover:not(.is-selected) { background: color-mix(in srgb, var(--cell-selected) 40%, var(--cell-bg)); }
     .text-btn:hover { color: var(--text-primary); }
 }

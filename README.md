@@ -25,6 +25,8 @@ generated right in your browser — with pencil-mark notes, hints, undo, dark mo
   step and says why ("Box 5 needs a 7, and this is the only cell where 7 fits"), naming any
   pairs or locked candidates it used. Best times only count hint-free solves.
 - **Undo and erase** — step back through every move.
+- **Cell-first or digit-first** — tap a cell then a number, or switch to digit-first in
+  Settings: pick a number once, then tap every cell it belongs in.
 - **Timer with pause** — pausing hides the board; the clock stops when you switch tabs.
 - **Picks up where you left off** — your game is saved as you play.
 - **Local stats per difficulty** — played, win rate, best and average time, plus daily streaks.
