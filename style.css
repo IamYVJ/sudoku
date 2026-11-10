@@ -1092,6 +1092,72 @@ button { font: inherit; color: inherit; }
 }
 
 .stats-block .result-stats { margin-bottom: 0; }
+
+/* Trend sparkline */
+.trend { margin-top: 10px; }
+.trend-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+.sparkline { display: block; width: 100%; height: auto; max-height: 64px; margin-top: 6px; overflow: visible; }
+.spark-line {
+    fill: none;
+    stroke: var(--accent-primary);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+}
+.spark-best { fill: var(--accent-primary); stroke: var(--bg-secondary); stroke-width: 2; }
+.trend-empty {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-tertiary);
+    text-align: center;
+}
+
+/* Daily calendar strip */
+.daily-cal-wrap { margin-top: 12px; }
+.daily-cal {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 5px;
+}
+.cal-day {
+    display: block;
+    aspect-ratio: 1;
+    border-radius: 4px;
+    border: 1.5px solid var(--border-2);
+    box-sizing: border-box;
+}
+.cal-day.is-clean { background: var(--accent-primary); border-color: var(--accent-primary); }
+.cal-day.is-hinted {
+    background: var(--accent-soft);
+    background: color-mix(in srgb, var(--accent-primary) 38%, transparent);
+    border-color: var(--accent-primary);
+}
+.cal-day.is-off { visibility: hidden; }
+.cal-day.is-today { box-shadow: 0 0 0 2px var(--bg-secondary), 0 0 0 3.5px var(--text-primary); }
+.cal-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin-top: 10px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+.cal-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.cal-legend .cal-day { width: 10px; height: 10px; border-radius: 3px; }
+
 .stats-reset { text-align: center; margin-top: 22px; }
 .settings-install { text-align: center; margin-top: 14px; }
 

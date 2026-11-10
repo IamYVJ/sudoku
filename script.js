@@ -29,6 +29,7 @@
         dailyGame: 'sudoku-daily-game', // today's daily in progress
         daily: 'sudoku-daily',          // daily results by date (streaks)
         stats: 'sudoku-stats',
+        history: 'sudoku-history',      // recent classic solve times per difficulty
         settings: 'sudoku-settings',
         helpSeen: 'sudoku-help-seen'
     };
@@ -69,7 +70,10 @@
         hintUnit: -1                    // unit highlighted by the last explained hint
     };
 
+    const HISTORY_CAP = 100;            // solves kept per difficulty
+    const DAILY_FIRST = '2026-11-10';   // puzzle #1
     let stats = defaultStats();
+    let solveLog = { v: 1, games: [] };
     let dailyData = { v: 1, results: {} };
 
     const el = {};          // cached elements (filled at boot)
@@ -209,8 +213,41 @@
         let isBest = false;
         if (hints === 0 && (s.bestMs === null || ms < s.bestMs)) { s.bestMs = ms; isBest = true; }
         saveStats();
+        solveLog.games.push({ d: diff, ms, h: hints, t: Date.now() });
+        trimHistory();
+        saveHistory();
         return { isBest, best: s.bestMs, avg: s.won ? s.totalMs / s.won : null };
     }
+
+    // ── Solve history (feeds the trend charts; older wins have no times) ──
+    function defaultHistory() { return { v: 1, games: [] }; }
+    function loadHistory() {
+        const raw = store.get(KEYS.history);
+        solveLog = defaultHistory();
+        if (!raw || raw.v !== 1 || !Array.isArray(raw.games)) return;
+        raw.games.forEach((g) => {
+            if (!g || !DIFFS.includes(g.d) || typeof g.ms !== 'number' || !isFinite(g.ms) || !(g.ms > 0)) return;
+            solveLog.games.push({
+                d: g.d, ms: g.ms,
+                h: typeof g.h === 'number' && isFinite(g.h) && g.h > 0 ? Math.floor(g.h) : 0,
+                t: typeof g.t === 'number' && isFinite(g.t) ? g.t : 0
+            });
+        });
+        trimHistory();
+    }
+    // Keeps only the newest HISTORY_CAP entries of each difficulty.
+    function trimHistory() {
+        const seen = {};
+        const kept = [];
+        for (let i = solveLog.games.length - 1; i >= 0; i--) {
+            const g = solveLog.games[i];
+            seen[g.d] = (seen[g.d] || 0) + 1;
+            if (seen[g.d] <= HISTORY_CAP) kept.push(g);
+        }
+        solveLog.games = kept.reverse();
+    }
+    function saveHistory() { store.set(KEYS.history, solveLog); }
+    function historyFor(diff) { return solveLog.games.filter((g) => g.d === diff); }
 
     // ── Daily results & streaks ──
     function loadDaily() {
@@ -1302,10 +1339,112 @@
         });
     }
 
+    const SVG_NS = 'http://www.w3.org/2000/svg';
+    function svgEl(name, attrs) {
+        const n = document.createElementNS(SVG_NS, name);
+        Object.keys(attrs).forEach((k) => n.setAttribute(k, attrs[k]));
+        return n;
+    }
+    // Line chart of recent solve times (oldest to newest) with the best one marked.
+    function sparkline(times) {
+        const W = 280, H = 56, PX = 8, PY = 8;
+        const min = Math.min(...times), max = Math.max(...times);
+        const span = max - min || 1;
+        const pts = times.map((ms, i) => [
+            PX + (i / (times.length - 1)) * (W - PX * 2),
+            max === min ? H / 2 : PY + ((ms - min) / span) * (H - PY * 2)
+        ]);
+        const svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'sparkline', role: 'img' });
+        svg.setAttribute('aria-label', 'Last ' + times.length + ' times, from ' + fmt(times[0]) + ' to ' + fmt(times[times.length - 1]));
+        svg.appendChild(svgEl('polyline', { points: pts.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' '), class: 'spark-line' }));
+        const bi = times.indexOf(min);
+        svg.appendChild(svgEl('circle', { cx: pts[bi][0].toFixed(1), cy: pts[bi][1].toFixed(1), r: 4, class: 'spark-best' }));
+        return svg;
+    }
+    function shortDate(key) {
+        return new Date(+key.slice(0, 4), +key.slice(5, 7) - 1, +key.slice(8, 10))
+            .toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    // The Daily over the last 30 local days as small squares, oldest first.
+    function dailyCalendar() {
+        const wrap = document.createElement('div');
+        wrap.className = 'daily-cal-wrap';
+        const grid = document.createElement('div');
+        grid.className = 'daily-cal';
+        grid.setAttribute('role', 'group');
+        grid.setAttribute('aria-label', 'Daily puzzles over the last 30 days');
+        const today = todayKey();
+        for (let i = 29; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const key = dayKey(d);
+            const sq = document.createElement('span');
+            sq.className = 'cal-day';
+            if (key < DAILY_FIRST) {
+                sq.classList.add('is-off');
+                sq.setAttribute('aria-hidden', 'true');
+            } else {
+                const r = dailyData.results[key];
+                let text = shortDate(key) + ' · Daily #' + E.daily(key).number;
+                if (r) {
+                    sq.classList.add(r.hints ? 'is-hinted' : 'is-clean');
+                    text += ' · solved in ' + fmt(r.ms) + (r.hints ? ' with ' + hintText(r.hints) : '');
+                } else {
+                    text += key === today ? ' · not solved yet' : ' · missed';
+                }
+                if (key === today) sq.classList.add('is-today');
+                sq.title = text;
+                sq.setAttribute('role', 'img');
+                sq.setAttribute('aria-label', text);
+            }
+            grid.appendChild(sq);
+        }
+        wrap.appendChild(grid);
+        const legend = document.createElement('p');
+        legend.className = 'cal-legend';
+        legend.setAttribute('aria-hidden', 'true');
+        [['is-clean', 'No hints'], ['is-hinted', 'Hints'], ['', 'Missed']].forEach(([c, t]) => {
+            const item = document.createElement('span');
+            const sw = document.createElement('i');
+            sw.className = 'cal-day ' + c;
+            item.appendChild(sw);
+            item.appendChild(document.createTextNode(t));
+            legend.appendChild(item);
+        });
+        wrap.appendChild(legend);
+        return wrap;
+    }
+    function trendBlock(diff) {
+        const times = historyFor(diff).map((g) => g.ms);
+        if (!stats[diff].played && !times.length) return null;
+        const box = document.createElement('div');
+        box.className = 'trend';
+        if (times.length < 2) {
+            const p = document.createElement('p');
+            p.className = 'trend-empty';
+            p.textContent = 'Trend appears after two solves';
+            box.appendChild(p);
+            return box;
+        }
+        const recent = times.slice(-20);
+        const last10 = times.slice(-10);
+        const head = document.createElement('div');
+        head.className = 'trend-head';
+        const a = document.createElement('span');
+        a.textContent = 'Last ' + recent.length + ' solves';
+        const b = document.createElement('span');
+        b.textContent = 'Last ' + last10.length + ' avg ' + fmt(last10.reduce((x, y) => x + y, 0) / last10.length);
+        head.appendChild(a);
+        head.appendChild(b);
+        box.appendChild(head);
+        box.appendChild(sparkline(recent));
+        return box;
+    }
+
     function renderStatsModal() {
         const body = $('stats-body');
         body.textContent = '';
-        const addBlock = (title, items) => {
+        const addBlock = (title, items, extra) => {
             const block = document.createElement('div');
             block.className = 'stats-block';
             const h = document.createElement('h3');
@@ -1315,6 +1454,7 @@
             fillStats(grid, items);
             block.appendChild(h);
             block.appendChild(grid);
+            if (extra) block.appendChild(extra);
             body.appendChild(block);
         };
         const st = dailyStreaks();
@@ -1323,7 +1463,7 @@
             ['Streak', String(st.current)],
             ['Max', String(st.max)],
             ['Best', st.best ? fmt(st.best) : '—']
-        ]);
+        ], dailyCalendar());
         DIFFS.forEach((d) => {
             const s = stats[d];
             addBlock(label(d), [
@@ -1331,7 +1471,7 @@
                 ['Win %', s.played ? Math.round((s.won / s.played) * 100) + '%' : '—'],
                 ['Best', s.bestMs ? fmt(s.bestMs) : '—'],
                 ['Average', s.won ? fmt(s.totalMs / s.won) : '—']
-            ]);
+            ], trendBlock(d));
         });
     }
 
@@ -1491,6 +1631,7 @@
 
         applyTheme(loadTheme());
         stats = loadStats();
+        loadHistory();
         dailyData = loadDaily();
         const settings = loadSettings();
         buildBoard();
@@ -1584,6 +1725,8 @@
             if (!ok) return;
             stats = defaultStats();
             saveStats();
+            solveLog = defaultHistory();
+            saveHistory();
             dailyData = { v: 1, results: {} };
             saveDaily();
             renderStatsModal();

@@ -34,7 +34,7 @@ generated right in your browser — with pencil-mark notes, hints, undo, dark mo
   Settings: pick a number once, then tap every cell it belongs in.
 - **Timer with pause** — pausing hides the board; the clock stops when you switch tabs.
 - **Picks up where you left off** — your game is saved as you play.
-- **Local stats per difficulty** — played, win rate, best and average time, plus daily streaks.
+- **Local stats per difficulty** — played, win rate, best and average time, a trend line of your recent solves with a last-10 average, plus daily streaks and a 30-day Daily calendar.
 - **Works offline, installable** — after the first visit the game and puzzle generator run
   without a connection, and it can be added to your home screen as an app.
 - **Dark / light theme**, remembered across visits.
