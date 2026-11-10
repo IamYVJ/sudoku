@@ -521,6 +521,21 @@ button { font: inherit; color: inherit; }
     color: var(--text-tertiary);
 }
 
+/* Visitor counter — decorative footnote under the home footer. No `display` is set on purpose:
+   the `hidden` attribute must win until a real count arrives, so an adblocked/offline visitor
+   never sees a bare "— visitors". */
+.visitor-counter {
+    margin: 0;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-tertiary);
+}
+
+.visitor-count {
+    color: var(--text-secondary);
+}
+
 /* ═══════════ GAME ═══════════ */
 .game-header {
     display: flex;

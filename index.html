@@ -113,6 +113,10 @@
             </section>
 
             <footer class="home-footer">No accounts · Progress stays in your browser</footer>
+
+            <p class="visitor-counter" hidden>
+                <span id="visitor-count" class="visitor-count">—</span> visitors
+            </p>
         </main>
     </section>
 
@@ -302,5 +306,57 @@
 <noscript><p class="noscript">Sudoku needs JavaScript.</p></noscript>
 <script src="sudoku.js"></script>
 <script src="script.js"></script>
+
+<!-- GoatCounter pageview beacon. Shared GoatCounter site across projects on purpose: counts
+     are per-path, so each project separates itself via its own pathname. This project has no
+     service worker, so nothing caches this cross-origin request (a cached beacon records
+     nothing). count.js files the view under location.pathname + location.search. -->
+<script
+    data-goatcounter="https://yvj.goatcounter.com/count"
+    async
+    src="//gc.zgo.at/count.js"></script>
+<script>
+    // Decorative visitor footnote. Reveals only when a real number arrives; every failure path
+    // (adblocker, offline, GoatCounter's "allow visitor counts" setting off) stays silent so a
+    // visitor never sees a broken "— visitors".
+    (function () {
+        function showVisitorCount() {
+            const box = document.querySelector('.visitor-counter');
+            const out = document.getElementById('visitor-count');
+            if (!box || !out) return;
+
+            // Derive the host from the beacon tag so the GoatCounter URL lives in one place.
+            const tag = document.querySelector('script[data-goatcounter]');
+            const endpoint = tag && tag.dataset.goatcounter;
+            if (!endpoint) return;
+
+            // Per-path, NOT /counter/TOTAL.json (that sums every project on this shared
+            // GoatCounter site). There is no <link rel="canonical"> in this page, so count.js
+            // files the pageview under location.pathname + location.search; we query pathname
+            // WITHOUT search so tracking params (?fbclid=…) still show the clean-path aggregate.
+            // Screens swap via CSS classes and history.pushState keeps the same URL, so
+            // location.pathname is stable.
+            const path = window.location.pathname;
+
+            // ?start= is a fixed date that predates this project's first-ever pageview. It does
+            // not change WHAT is counted (all-time is the default) but gives the request its own
+            // cache key: a path with no data yet answers 404, and GoatCounter caches that 404 for
+            // up to ~4h. Keep it a FIXED date — never a rolling window like `week`/`year`.
+            const START = '2026-01-01';
+
+            fetch(`${endpoint.replace(/\/count$/, '')}/counter/${encodeURIComponent(path)}.json?start=${START}`)
+                .then((res) => (res.ok ? res.json() : Promise.reject(new Error('bad status'))))
+                .then((data) => {
+                    // `count` arrives pre-formatted ("1,234"); GoatCounter caches it ~4h.
+                    if (data && data.count != null) {
+                        out.textContent = String(data.count);
+                        box.hidden = false;
+                    }
+                })
+                .catch(() => { /* purely decorative: leave the footnote hidden on every failure */ });
+        }
+        showVisitorCount();
+    })();
+</script>
 </body>
 </html>
