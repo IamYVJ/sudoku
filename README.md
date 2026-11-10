@@ -18,7 +18,8 @@ generated right in your browser — with pencil-mark notes, hints, undo, dark mo
   to beat. The link carries the grid itself, so it opens instantly on any device.
 - **Exactly one solution, every time** — each puzzle is checked for uniqueness before you see it.
 - **Pencil-mark notes** — toggle Notes (or hold Shift) to jot candidates; placing a digit
-  clears it from the notes in its row, column, and box.
+  clears it from the notes in its row, column, and box. **Fill** pencils in every candidate
+  at once when you'd rather start from full notes (one undo takes it back).
 - **Gentle feedback** — clashing digits turn red, and the selected cell's row, column, box,
   and matching digits are highlighted. The game never peeks at the answer for you.
 - **Hints that teach** — a hint fixes a mistake first; otherwise it fills the next logical
@@ -44,6 +45,7 @@ generated right in your browser — with pencil-mark notes, hints, undo, dark mo
 | `Backspace` / `Delete` / `0` | Erase |
 | `N` | Notes mode |
 | `Z` / `Ctrl+Z` | Undo |
+| `F` | Fill all notes |
 | `H` | Hint |
 | `P` | Pause |
 

@@ -168,7 +168,7 @@
 
             <div class="board-wrap" id="board-wrap">
                 <div id="board" class="board" role="grid" aria-label="Sudoku board" aria-rowcount="9" aria-colcount="9" aria-describedby="board-help"></div>
-                <p id="board-help" class="sr-only">Arrow keys move. 1 to 9 enters a digit, Shift plus a digit toggles a note. Backspace erases. N toggles notes mode, Z undoes, H gives a hint, P pauses.</p>
+                <p id="board-help" class="sr-only">Arrow keys move. 1 to 9 enters a digit, Shift plus a digit toggles a note. Backspace erases. N toggles notes mode, F fills all notes, Z undoes, H gives a hint, P pauses.</p>
                 <div id="pause-overlay" class="pause-overlay" hidden>
                     <p class="pause-title">Paused</p>
                     <p class="pause-sub" id="pause-sub">Medium · 0:00</p>
@@ -194,6 +194,10 @@
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4Z"/><path d="m13.5 6.5 4 4"/></svg>
                         <span class="tool-label">Notes</span>
                         <span class="tool-badge" id="notes-state" aria-hidden="true">Off</span>
+                    </button>
+                    <button class="tool-btn" id="fill-btn" type="button" aria-label="Fill notes with every candidate">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><path d="M8 8h.01M12 8h.01M16 8h.01M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01" stroke-width="2.6"/></svg>
+                        <span class="tool-label">Fill</span>
                     </button>
                     <button class="tool-btn" id="hint-btn" type="button">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.6 10.8c.6.45 1 1.15 1.1 1.95l.05.75h5l.05-.75c.1-.8.5-1.5 1.1-1.95A6 6 0 0 0 12 3Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -230,6 +234,7 @@
             <ul class="help-rules">
                 <li>Tap a cell, then a number to place it. Prefer the number first? Turn on Digit-first input in Settings.</li>
                 <li>Notes mode pencils in small candidates. Placing a digit clears it from the notes in the same row, column and box.</li>
+                <li>Fill pencils in every candidate for every empty cell at once (you can undo it).</li>
                 <li>Clashing digits turn red.</li>
                 <li>Hint fixes a mistake first. Otherwise it fills the next logical step and tells you why, such as a hidden single in a box.</li>
                 <li>Every puzzle has exactly one solution. Easy to Hard never need guessing.</li>
@@ -243,6 +248,7 @@
                 <dt><kbd>⌫</kbd> <kbd>Del</kbd> <kbd>0</kbd></dt><dd>Erase</dd>
                 <dt><kbd>N</kbd></dt><dd>Notes mode</dd>
                 <dt><kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Z</kbd></dt><dd>Undo</dd>
+                <dt><kbd>F</kbd></dt><dd>Fill all notes</dd>
                 <dt><kbd>H</kbd></dt><dd>Hint</dd>
                 <dt><kbd>P</kbd></dt><dd>Pause</dd>
                 <dt><kbd>?</kbd> / <kbd>Esc</kbd></dt><dd>Help / close</dd>

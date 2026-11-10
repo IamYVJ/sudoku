@@ -851,7 +851,7 @@ button { font: inherit; color: inherit; }
 /* ── Tools & numpad ── */
 .tools {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 8px;
 }
 
@@ -1332,7 +1332,7 @@ kbd {
     .numpad { grid-template-columns: repeat(3, 1fr); gap: 8px; }
     .num-key { min-height: 0; height: clamp(44px, 11dvh, 76px); }
     .num-digit { font-size: clamp(1.3rem, 3.2vh, 1.9rem); }
-    .tools { grid-template-columns: repeat(4, 1fr); }
+    .tools { grid-template-columns: repeat(5, 1fr); }
     .solved-actions { grid-column: 2; }
 }
 

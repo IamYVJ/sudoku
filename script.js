@@ -866,6 +866,7 @@
         el.undoBtn.disabled = !playing || !g.undo.length;
         el.eraseBtn.disabled = !playing || state.selected < 0 || !editable(state.selected) || (!g.values[state.selected] && !g.notes[state.selected]);
         el.notesBtn.disabled = !playing;
+        el.fillBtn.disabled = !playing;
         el.hintBtn.disabled = !playing;
         el.hintBtn.setAttribute('aria-label', hc ? 'Hint, ' + hc + ' used' : 'Hint');
     }
@@ -1046,6 +1047,24 @@
         state.armed = state.armed === d ? 0 : d;
         render();
         if (state.armed) announce(d + ' picked. Tap cells to ' + (state.notesMode ? 'note' : 'place') + ' it.');
+    }
+
+    // Pencils in every candidate for every empty cell, as one undoable step.
+    function fillNotes() {
+        const g = state.game;
+        if (!g || g.status !== 'playing' || isUserPaused()) return;
+        const changes = [];
+        for (let i = 0; i < 81; i++) {
+            if (g.values[i]) continue;
+            const m = E.candidates(g.values, i);
+            if (m !== g.notes[i]) { changes.push([i, 0, g.notes[i]]); g.notes[i] = m; }
+        }
+        if (!changes.length) { toast('Notes are already complete'); return; }
+        pushUndo({ c: changes, s: state.selected });
+        afterChange(-1);
+        const msg = 'Filled notes in ' + changes.length + (changes.length === 1 ? ' cell' : ' cells');
+        toast(msg);
+        announce(msg);
     }
 
     function toggleNotesMode() {
@@ -1339,6 +1358,7 @@
             case 'KeyN': e.preventDefault(); toggleNotesMode(); break;
             case 'KeyZ': case 'KeyU': e.preventDefault(); undo(); break;
             case 'KeyH': e.preventDefault(); hint(); break;
+            case 'KeyF': e.preventDefault(); fillNotes(); break;
             default: break;
         }
     }
@@ -1349,7 +1369,7 @@
             app: 'app', home: 'home-screen', gameScreen: 'game-screen', board: 'board', numpad: 'numpad',
             controls: 'controls', solvedActions: 'solved-actions', messages: 'message-container', announcer: 'sr-announcer',
             pauseOverlay: 'pause-overlay', pauseSub: 'pause-sub', pauseBtn: 'pause-btn', resumeBtn: 'resume-btn',
-            undoBtn: 'undo-btn', eraseBtn: 'erase-btn', notesBtn: 'notes-btn', hintBtn: 'hint-btn',
+            undoBtn: 'undo-btn', eraseBtn: 'erase-btn', notesBtn: 'notes-btn', hintBtn: 'hint-btn', fillBtn: 'fill-btn',
             notesState: 'notes-state', hintCount: 'hint-count', timer: 'timer', difficultyLabel: 'game-difficulty',
             continueBtn: 'continue-btn', continueSub: 'continue-sub', solvedNewBtn: 'solved-new-btn',
             dailyBtn: 'daily-btn', dailyTitle: 'daily-title', dailySub: 'daily-sub',
@@ -1421,6 +1441,7 @@
         el.undoBtn.addEventListener('click', undo);
         el.eraseBtn.addEventListener('click', erase);
         el.notesBtn.addEventListener('click', toggleNotesMode);
+        el.fillBtn.addEventListener('click', fillNotes);
         el.hintBtn.addEventListener('click', hint);
         el.solvedNewBtn.addEventListener('click', () => {
             const g = state.game;
