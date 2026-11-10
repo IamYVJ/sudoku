@@ -17,6 +17,8 @@ generated right in your browser — with pencil-mark notes, hints, undo, dark mo
   its own stats and trend lines, and hints and challenge links that understand the extra rule.
 - **Daily puzzle** — one puzzle a day, the same for everyone, with the difficulty rotating
   through the week. Solve it on consecutive days to build a streak, then share your time.
+  A month-by-month archive lets you play any past Daily; archive solves count as solved
+  but never toward the streak.
 - **Challenge a friend** — after a win, share a link to the exact same puzzle with your time
   to beat. The link carries the grid itself, so it opens instantly on any device.
 - **Exactly one solution, every time** — each puzzle is checked for uniqueness before you see it.

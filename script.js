@@ -276,6 +276,7 @@
             const r = raw.results[k];
             if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || !r || typeof r.ms !== 'number' || !(r.ms > 0)) return;
             out.results[k] = { ms: r.ms, hints: Math.max(0, r.hints | 0), mistakes: Math.max(0, r.mistakes | 0), strict: !!r.strict };
+            if (r.late === true) out.results[k].late = true;
         });
         return out;
     }
@@ -283,16 +284,18 @@
     function dailyStreaks() {
         const res = dailyData.results;
         const keys = Object.keys(res).sort();
+        // Archive solves (solved on a later day) count as solved but never extend a streak.
+        const onTime = (k) => !!res[k] && !res[k].late;
         let max = 0, run = 0, prev = null;
-        keys.forEach((k) => {
+        keys.filter(onTime).forEach((k) => {
             run = prev !== null && keyToUTC(k) - keyToUTC(prev) === 86400000 ? run + 1 : 1;
             if (run > max) max = run;
             prev = k;
         });
         const d = new Date();
-        if (!res[dayKey(d)]) d.setDate(d.getDate() - 1);
+        if (!onTime(dayKey(d))) d.setDate(d.getDate() - 1);
         let current = 0;
-        while (res[dayKey(d)]) { current++; d.setDate(d.getDate() - 1); }
+        while (onTime(dayKey(d))) { current++; d.setDate(d.getDate() - 1); }
         let best = null;
         keys.forEach((k) => { const ms = res[k].ms; if (!res[k].hints && (best === null || ms < best)) best = ms; });
         return { current, max, solved: keys.length, best };
@@ -300,10 +303,10 @@
     function dailyShareText(info, r) {
         const st = dailyStreaks();
         const lines = [
-            'Sudoku Daily #' + info.number + ' · ' + label(info.difficulty),
+            'Sudoku Daily #' + info.number + ' · ' + label(info.difficulty) + (r.late ? ' (archive)' : ''),
             '⏱️ ' + fmt(r.ms) + ' · ' + hintText(r.hints) + (r.strict ? ' · strict, ' + mistakeText(r.mistakes) : '')
         ];
-        if (st.current > 1) lines.push('🔥 ' + st.current + '-day streak');
+        if (!r.late && st.current > 1) lines.push('🔥 ' + st.current + '-day streak');
         lines.push(siteUrl());
         return lines.join('\n');
     }
@@ -369,7 +372,8 @@
         try {
             if (!r || r.v !== 1 || !DIFFS.includes(r.difficulty)) throw 0;
             // A daily only stays resumable on its own day.
-            if (mode === 'daily' && (r.date !== todayKey() || dailyData.results[r.date])) throw 0;
+            // A daily resumes on its own day or later (archive), never before puzzle #1 or in the future.
+            if (mode === 'daily' && (typeof r.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(r.date) || r.date < DAILY_FIRST || r.date > todayKey() || dailyData.results[r.date])) throw 0;
             if (typeof r.puzzle !== 'string' || !/^[0-9]{81}$/.test(r.puzzle)) throw 0;
             if (typeof r.values !== 'string' || !/^[0-9]{81}$/.test(r.values)) throw 0;
             if (typeof r.solution !== 'string' || !/^[1-9]{81}$/.test(r.solution)) throw 0;
@@ -400,7 +404,7 @@
             const given = new Uint8Array(81);
             for (let i = 0; i < 81; i++) given[i] = puzzle[i] ? 1 : 0;
             const game = {
-                mode, date: mode === 'daily' ? r.date : null, number: mode === 'daily' ? Number(r.number) || 0 : 0,
+                mode, date: mode === 'daily' ? r.date : null, number: mode === 'daily' ? E.daily(r.date).number : 0,
                 challengeMs: Math.max(0, Number(r.challengeMs) || 0),
                 strict: !!r.strict, mistakes: Math.min(MAX_MISTAKES - 1, Math.max(0, r.mistakes | 0)),
                 difficulty: r.difficulty, variant, seed: r.seed >>> 0, level: Number(r.level) || 0,
@@ -677,9 +681,14 @@
     // ── Daily ──
     let dailyStarting = false;
 
-    async function openDaily() {
+    function openDaily() { return openDailyOn(todayKey()); }
+
+    // Opens the Daily of any playable day (today, or an archive day back to puzzle #1).
+    async function openDailyOn(key) {
         if (dailyStarting || starting) return;
-        const info = E.daily(todayKey());
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || key < DAILY_FIRST || key > todayKey()) return;
+        const isToday = key === todayKey();
+        const info = E.daily(key);
         const done = dailyData.results[info.key];
         if (done) { showDailyResult(info, done); return; }
         const saved = state.games.daily;
@@ -688,9 +697,21 @@
             showGame({ paused: false });
             return;
         }
+        if (saved && saved.status === 'playing' && (gameElapsed(saved) > 0 || saved.undo.length || saved.hintsUsed)) {
+            const ok = await confirmDialog({
+                title: 'Switch daily?',
+                text: 'Your Daily #' + saved.number + ' in progress (' + fmt(gameElapsed(saved)) + ') will be lost.',
+                okLabel: 'Open Daily #' + info.number, cancelLabel: 'Keep playing'
+            });
+            if (!ok) return;
+            if (dailyStarting || starting) return;
+        }
         dailyStarting = true;
         const btn = el.dailyBtn;
-        const busyTimer = setTimeout(() => { btn.setAttribute('aria-busy', 'true'); el.dailySub.textContent = 'Generating…'; }, 150);
+        const busyTimer = setTimeout(() => {
+            if (isToday) { btn.setAttribute('aria-busy', 'true'); el.dailySub.textContent = 'Generating…'; }
+            else toast('Preparing Daily #' + info.number + '…', 1500);
+        }, 150);
         try {
             const p = await generateRaw(info.difficulty, { seed: info.seed, maxAttempts: info.maxAttempts });
             createGame(p, { mode: 'daily', date: info.key, number: info.number });
@@ -713,6 +734,7 @@
         let res;
         if (g.mode === 'daily') {
             res = { ms, hints: g.hintsUsed, mistakes: g.mistakes || 0, strict: !!g.strict };
+            if (g.date !== todayKey()) res.late = true;
             if (!dailyData.results[g.date]) { dailyData.results[g.date] = res; saveDaily(); }
             else res = dailyData.results[g.date];
             store.del(KEYS.dailyGame);
@@ -842,10 +864,10 @@
         ]);
         $('win-best-badge').hidden = true;
         $('win-title').textContent = 'Solved';
-        $('win-sub').textContent = label(info.difficulty) + ' · ' + hintText(r.hints) + (r.strict ? ' · ' + mistakeText(r.mistakes) : '');
+        $('win-sub').textContent = label(info.difficulty) + ' · ' + hintText(r.hints) + (r.strict ? ' · ' + mistakeText(r.mistakes) : '') + (r.late ? ' · Archive' : '');
         const next = $('win-next');
         next.textContent = 'Next daily in ' + fmtCountdown(untilMidnight());
-        next.hidden = false;
+        next.hidden = info.key !== todayKey();
         $('win-new-btn').textContent = 'Share result';
         $('win-share-btn').hidden = true;
         winPrimary = () => shareText(dailyShareText(info, r));
@@ -1408,15 +1430,16 @@
         const grid = document.createElement('div');
         grid.className = 'daily-cal';
         grid.setAttribute('role', 'group');
-        grid.setAttribute('aria-label', 'Daily puzzles over the last 30 days');
+        grid.setAttribute('aria-label', 'Daily puzzles over the last 30 days. Tap a day to open it.');
         const today = todayKey();
         for (let i = 29; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
             const key = dayKey(d);
-            const sq = document.createElement('span');
+            const playable = key >= DAILY_FIRST;
+            const sq = document.createElement(playable ? 'button' : 'span');
             sq.className = 'cal-day';
-            if (key < DAILY_FIRST) {
+            if (!playable) {
                 sq.classList.add('is-off');
                 sq.setAttribute('aria-hidden', 'true');
             } else {
@@ -1430,8 +1453,9 @@
                 }
                 if (key === today) sq.classList.add('is-today');
                 sq.title = text;
-                sq.setAttribute('role', 'img');
-                sq.setAttribute('aria-label', text);
+                sq.type = 'button';
+                sq.setAttribute('aria-label', text + ' · open');
+                sq.addEventListener('click', () => { closeModal('stats-modal'); openDailyOn(key); });
             }
             grid.appendChild(sq);
         }
@@ -1450,6 +1474,97 @@
         wrap.appendChild(legend);
         return wrap;
     }
+    // ── Daily archive: a month grid from puzzle #1 up to today ──
+    const archive = { y: 0, m: 0 };     // month on show (m is 0-11)
+    const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const monthIndex = (key) => +key.slice(0, 4) * 12 + (+key.slice(5, 7) - 1);
+
+    function renderArchive(announceMonth) {
+        const today = todayKey();
+        const lo = monthIndex(DAILY_FIRST), hi = Math.max(lo, monthIndex(today));
+        let idx = archive.y * 12 + archive.m;
+        idx = Math.min(hi, Math.max(lo, idx));
+        archive.y = Math.floor(idx / 12);
+        archive.m = idx % 12;
+        const title = MONTH_NAMES[archive.m] + ' ' + archive.y;
+        $('archive-month').textContent = title;
+        const prev = $('archive-prev'), next = $('archive-next');
+        prev.disabled = idx <= lo;
+        next.disabled = idx >= hi;
+        // Moving focus off a button that just got disabled keeps keyboard users in place.
+        if (prev.disabled && document.activeElement === prev) next.focus({ preventScroll: true });
+        else if (next.disabled && document.activeElement === next) prev.focus({ preventScroll: true });
+        const grid = $('archive-grid');
+        grid.textContent = '';
+        const first = new Date(archive.y, archive.m, 1).getDay();       // Sunday-first
+        const count = new Date(archive.y, archive.m + 1, 0).getDate();
+        for (let i = 0; i < first; i++) {
+            const gap = document.createElement('span');
+            gap.setAttribute('aria-hidden', 'true');
+            grid.appendChild(gap);
+        }
+        const saved = state.games.daily;
+        let solved = 0, playable = 0;
+        for (let n = 1; n <= count; n++) {
+            const key = archive.y + '-' + pad2(archive.m + 1) + '-' + pad2(n);
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'arch-day';
+            const num = document.createElement('span');
+            num.className = 'arch-num';
+            num.textContent = String(n);
+            b.appendChild(num);
+            const short = shortDate(key);
+            if (key < DAILY_FIRST || key > today) {
+                b.disabled = true;
+                b.classList.add('is-off');
+                b.setAttribute('aria-label', short + ' · ' + (key < DAILY_FIRST ? 'before the first puzzle' : 'not available yet'));
+            } else {
+                playable++;
+                const info = E.daily(key);
+                const r = dailyData.results[key];
+                let text = short + ' · Daily #' + info.number + ' · ' + label(info.difficulty);
+                if (r) {
+                    solved++;
+                    b.classList.add(r.hints ? 'is-hinted' : 'is-clean');
+                    const t = document.createElement('span');
+                    t.className = 'arch-time';
+                    t.textContent = fmt(r.ms);
+                    b.appendChild(t);
+                    text += ' · solved in ' + fmt(r.ms) + (r.hints ? ' with ' + hintText(r.hints) : '') + (r.late ? ' (archive)' : '');
+                } else if (saved && saved.date === key && saved.status === 'playing') {
+                    b.classList.add('is-progress');
+                    text += ' · in progress';
+                } else {
+                    text += ' · not solved';
+                }
+                if (key === today) { b.classList.add('is-today'); b.setAttribute('aria-current', 'date'); }
+                b.title = text;
+                b.setAttribute('aria-label', text);
+                b.addEventListener('click', () => { closeModal('archive-modal'); openDailyOn(key); });
+            }
+            grid.appendChild(b);
+        }
+        $('archive-note').textContent = playable
+            ? solved + ' of ' + playable + ' solved this month. Solving on the day builds your streak; archive solves do not.'
+            : 'No puzzles this month.';
+        if (announceMonth) announce(title + ', ' + solved + ' of ' + playable + ' solved');
+    }
+
+    function openArchive() {
+        const t = todayKey();
+        archive.y = +t.slice(0, 4);
+        archive.m = +t.slice(5, 7) - 1;
+        renderArchive(false);
+        openModal('archive-modal');
+    }
+    function stepArchive(delta) {
+        const idx = archive.y * 12 + archive.m + delta;
+        archive.y = Math.floor(idx / 12);
+        archive.m = idx % 12;
+        renderArchive(true);
+    }
+
     function trendBlock(diff, variant) {
         const times = historyFor(diff, variant).map((g) => g.ms);
         if (!statsFor(diff, variant).played && !times.length) return null;
@@ -1560,7 +1675,7 @@
         if (!state.game) return;
         if (opts && opts.paused) state.pauseReasons.add('user'); else state.pauseReasons.delete('user');
         setScreen('game');
-        try { history.pushState({ sudoku: 'game' }, ''); } catch (e) { /* ignore */ }
+        try { if (!(history.state && history.state.sudoku === 'game')) history.pushState({ sudoku: 'game' }, ''); } catch (e) { /* ignore */ }
         render();
         applyPauseUI();
         syncTimer();
@@ -1730,6 +1845,9 @@
             if (g && g.status === 'playing') { setActive(g); showGame({ paused: false }); }
         });
         el.dailyBtn.addEventListener('click', openDaily);
+        $('archive-btn').addEventListener('click', openArchive);
+        $('archive-prev').addEventListener('click', () => stepArchive(-1));
+        $('archive-next').addEventListener('click', () => stepArchive(1));
         el.variantBtns.forEach((b) => {
             b.addEventListener('click', () => setVariant(b.dataset.variant));
             b.addEventListener('keydown', (e) => {

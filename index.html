@@ -78,6 +78,8 @@
                 </svg>
             </button>
 
+            <p class="archive-row"><button id="archive-btn" class="text-btn" type="button">Past puzzles</button></p>
+
             <button id="continue-btn" class="daily-btn is-quiet" type="button" hidden>
                 <svg class="daily-btn-cal" width="26" height="26" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true">
                     <rect x="8" y="8" width="48" height="48" rx="4"/>
@@ -262,7 +264,7 @@
                 <li>After a win, Challenge a friend copies a link to the same puzzle with your time to beat.</li>
                 <li>Works offline once loaded. To install it, use Install app in Settings, or on iPhone and iPad tap Share, then Add to Home Screen.</li>
                 <li>Diagonal is a variant you pick on the home screen: the two long diagonals (shaded on the board) must also hold 1 to 9 exactly once. Its stats and times are kept apart from Classic, and the Daily is always Classic.</li>
-                <li>The Daily puzzle is the same for everyone each day. Solve it on consecutive days to build a streak, then share your result.</li>
+                <li>The Daily puzzle is the same for everyone each day. Solve it on consecutive days to build a streak, then share your result. Missed one? Past puzzles in the archive can still be solved and shared, but only on-the-day solves count toward the streak.</li>
             </ul>
             <dl class="help-keys">
                 <dt><kbd>1</kbd>–<kbd>9</kbd></dt><dd>Enter a digit</dd>
@@ -328,6 +330,32 @@
                 </button>
             </div>
             <p class="settings-install" id="install-row" hidden><button class="text-btn" id="install-btn" type="button">Install app</button></p>
+        </div>
+    </div>
+</div>
+
+<div id="archive-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="archive-title" aria-hidden="true">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="archive-title">Daily archive</h2>
+            <button class="modal-close" data-close type="button" aria-label="Close">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+        </div>
+        <div class="modal-body">
+            <div class="archive-nav">
+                <button class="archive-step" id="archive-prev" type="button" aria-label="Previous month">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <h3 class="archive-month" id="archive-month" aria-live="polite"></h3>
+                <button class="archive-step" id="archive-next" type="button" aria-label="Next month">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+            </div>
+            <div class="archive-week" aria-hidden="true"><span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span></div>
+            <div class="archive-grid" id="archive-grid" role="group" aria-labelledby="archive-month"></div>
+            <p class="archive-note" id="archive-note"></p>
         </div>
     </div>
 </div>
