@@ -24,6 +24,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Sudoku">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -243,6 +249,7 @@
                 <li>Hint fixes a mistake first. Otherwise it fills the next logical step and tells you why, such as a hidden single in a box.</li>
                 <li>Every puzzle has exactly one solution. Easy to Hard never need guessing.</li>
                 <li>After a win, Challenge a friend copies a link to the same puzzle with your time to beat.</li>
+                <li>Works offline once loaded. To install it, use Install app in Settings, or on iPhone and iPad tap Share, then Add to Home Screen.</li>
                 <li>The Daily puzzle is the same for everyone each day. Solve it on consecutive days to build a streak, then share your result.</li>
             </ul>
             <dl class="help-keys">
@@ -308,6 +315,7 @@
                     <span class="switch" aria-hidden="true"></span>
                 </button>
             </div>
+            <p class="settings-install" id="install-row" hidden><button class="text-btn" id="install-btn" type="button">Install app</button></p>
         </div>
     </div>
 </div>
@@ -387,9 +395,9 @@
 <script src="script.js"></script>
 
 <!-- GoatCounter pageview beacon. Shared GoatCounter site across projects on purpose: counts
-     are per-path, so each project separates itself via its own pathname. This project has no
-     service worker, so nothing caches this cross-origin request (a cached beacon records
-     nothing). count.js files the view under location.pathname + location.search. -->
+     are per-path, so each project separates itself via its own pathname. The service worker
+     (sw.js) deliberately ignores this cross-origin request, so nothing caches it (a cached
+     beacon records nothing) and it simply fails offline. count.js files the view under location.pathname + location.search. -->
 <script
     data-goatcounter="https://yvj.goatcounter.com/count"
     async

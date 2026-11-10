@@ -1093,6 +1093,7 @@ button { font: inherit; color: inherit; }
 
 .stats-block .result-stats { margin-bottom: 0; }
 .stats-reset { text-align: center; margin-top: 22px; }
+.settings-install { text-align: center; margin-top: 14px; }
 
 /* ── Modals ── */
 .modal {

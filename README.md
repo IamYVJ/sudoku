@@ -35,6 +35,8 @@ generated right in your browser — with pencil-mark notes, hints, undo, dark mo
 - **Timer with pause** — pausing hides the board; the clock stops when you switch tabs.
 - **Picks up where you left off** — your game is saved as you play.
 - **Local stats per difficulty** — played, win rate, best and average time, plus daily streaks.
+- **Works offline, installable** — after the first visit the game and puzzle generator run
+  without a connection, and it can be added to your home screen as an app.
 - **Dark / light theme**, remembered across visits.
 - **Built for phones and keyboards** — big tap targets, a layout that fits any screen, and
   full keyboard play.

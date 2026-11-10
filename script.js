@@ -1604,6 +1604,34 @@
         else if (resume && settings.screen === 'game') showGame({ paused: true });
         else if (store.get(KEYS.helpSeen) !== '1') openHelp();
         prefetch(state.difficulty);
+        setupPwa();
+    }
+
+    // Offline support + optional "Install app" row (only where the browser offers an install prompt).
+    function setupPwa() {
+        const row = $('install-row');
+        const btn = $('install-btn');
+        let deferred = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferred = e;
+            if (row) row.hidden = false;
+        });
+        window.addEventListener('appinstalled', () => { deferred = null; if (row) row.hidden = true; });
+        if (btn) {
+            btn.addEventListener('click', () => {
+                const p = deferred;
+                if (!p) return;
+                deferred = null;
+                if (row) row.hidden = true;
+                try { p.prompt(); } catch (e) { /* ignore */ }
+            });
+        }
+        if ('serviceWorker' in navigator) {
+            const reg = () => { navigator.serviceWorker.register('sw.js').catch(() => { /* offline support is optional */ }); };
+            if (document.readyState === 'complete') reg();
+            else window.addEventListener('load', reg);
+        }
     }
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
