@@ -190,9 +190,12 @@
 
             <footer class="home-footer">No accounts · Progress stays in your browser</footer>
 
-            <p class="visitor-counter" hidden>
-                <span id="visitor-count" class="visitor-count">—</span> visitors
-            </p>
+            <div class="site-fineprint">
+                <p class="visitor-counter" hidden>
+                    <span id="visitor-count" class="visitor-count">—</span> visitors
+                </p>
+                <button type="button" id="clear-cache" class="cache-reset">Clear cache &amp; reload</button>
+            </div>
         </main>
     </section>
 
@@ -515,13 +518,15 @@
             if (!endpoint) return;
 
             // Per-path, NOT /counter/TOTAL.json (that sums every project on this shared
-            // GoatCounter site). This page has a <link rel="canonical"> to /sudoku/, so count.js
-            // files the pageview under the canonical path (/sudoku/) rather than location.pathname + location.search;
-            // that equals the pathname served here, so we query location.pathname
-            // WITHOUT search so tracking params (?fbclid=…) still show the clean-path aggregate.
-            // Screens swap via CSS classes and history.pushState keeps the same URL, so
-            // location.pathname is stable.
-            const path = window.location.pathname;
+            // GoatCounter site). This page has a <link rel="canonical"> to /sudoku/, and count.js
+            // files every pageview under the canonical URL's path, whatever URL was actually
+            // loaded (/sudoku/index.html, /sudoku/?c=…, ?fbclid=…). So query that same path, read
+            // from the canonical tag, not location.pathname: /sudoku/index.html would 404 forever,
+            // and a local preview at / would show another project's count. Fall back to
+            // location.pathname only if the canonical tag is ever removed.
+            const canonical = document.querySelector('link[rel="canonical"][href]');
+            let path = window.location.pathname;
+            try { if (canonical) path = new URL(canonical.href).pathname; } catch (e) { /* keep pathname */ }
 
             // ?start= is a fixed date that predates this project's first-ever pageview. It does
             // not change WHAT is counted (all-time is the default) but gives the request its own
@@ -541,6 +546,41 @@
                 .catch(() => { /* purely decorative: leave the footnote hidden on every failure */ });
         }
         showVisitorCount();
+
+        // Escape hatch for a stuck offline copy. Clears Cache Storage and the service worker ONLY.
+        // It must never touch localStorage: there are no accounts here, so these keys are the only
+        // copy of the player's data and nothing could restore them —
+        //   sudoku-game / sudoku-daily-game  the classic and Daily games in progress (board, notes, timer)
+        //   sudoku-daily                     every Daily result, i.e. the streaks and the archive's solved marks
+        //   sudoku-stats / sudoku-history    win counts, best times and the solve-time trend
+        //   sudoku-settings / theme / sudoku-help-seen  preferences (re-settable, but still not ours to wipe)
+        function wireCacheReset() {
+            const btn = document.getElementById('clear-cache');
+            if (!btn) return;
+
+            btn.addEventListener('click', async () => {
+                btn.disabled = true;
+                btn.textContent = 'Clearing…';
+                try {
+                    if (window.caches) {
+                        const keys = await caches.keys();
+                        await Promise.all(keys.map((k) => caches.delete(k)));
+                    }
+                    // Drop the worker too so the reload comes off the network; script.js registers
+                    // a fresh one on load, which precaches the shell again.
+                    if (navigator.serviceWorker) {
+                        const regs = await navigator.serviceWorker.getRegistrations();
+                        await Promise.all(regs.map((r) => r.unregister()));
+                    }
+                } catch (e) {
+                    // A partial clear is still worth reloading after; never leave the button stuck.
+                }
+                // Plain reload, no cache-busting query: count.js files views under the URL, and the
+                // service worker is already gone, so nothing would be gained.
+                window.location.reload();
+            });
+        }
+        wireCacheReset();
     })();
 </script>
 </body>

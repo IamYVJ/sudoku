@@ -668,6 +668,33 @@ button { font: inherit; color: inherit; }
     color: var(--text-secondary);
 }
 
+/* Fine print under the home footer: the visitor count and the cache escape hatch. */
+.site-fineprint {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.cache-reset {
+    background: none;
+    border: 0;
+    padding: 12px 2px;
+    margin: -12px 0;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: var(--border-2);
+}
+
+.cache-reset[disabled] {
+    cursor: progress;
+    text-decoration: none;
+}
+
 /* ═══════════ GAME ═══════════ */
 .game-header {
     display: flex;
@@ -1670,6 +1697,7 @@ kbd {
     .switch-row:hover .switch { border-color: var(--text-primary); }
     .cell:hover:not(.is-selected) { background: color-mix(in srgb, var(--cell-selected) 40%, var(--cell-bg)); }
     .text-btn:hover { color: var(--text-primary); }
+    .cache-reset:hover:not([disabled]) { color: var(--accent-primary); text-decoration-color: currentColor; }
 }
 
 /* ── Responsive ── */

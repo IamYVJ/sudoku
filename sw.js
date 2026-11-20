@@ -1,7 +1,7 @@
 // Service worker: makes the game work offline and installable.
 // Strategy is network-first for same-origin files (fresh when online, cached when not), so the
 // cache name does not need bumping on each release; bump it only to force-drop old caches.
-const CACHE = 'sudoku-v1';
+const CACHE = 'sudoku-v2';
 const FONT_CACHE = 'sudoku-fonts-v1';
 const SHELL = [
     './', 'index.html', 'style.css', 'script.js', 'sudoku.js', 'generator.worker.js',
